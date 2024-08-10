@@ -1,5 +1,5 @@
 
-/** Helper class to manipulate the HTMLCanvasElement.  */
+/** Helper class to manipulate the HTMLCanvasElement. */
 class Canvas2D {
 	constructor(canvasElementId, width, height) {		
 		this.canvas = document.getElementById(canvasElementId);
@@ -52,10 +52,46 @@ class Canvas2D {
 	}
 }
 
+/** Custom measure in pixels */
+class Measure {
+	constructor(measureValue, baseMeasure) {
+		this.measure = {  _onChangeFunctions: [] };
+
+		if (typeof(measureValue) === "number") {
+			this.value = measureValue;
+		} else if (measureValue instanceof Function && baseMeasure instanceof Measure) {
+			this.value = measureValue(baseMeasure);
+			baseMeasure.addOnChangeFunction(measureValue);
+		} else {
+			this.value = 1;
+		}
+	}
+
+	addOnChangeFunction(onChangeFunction) {
+		if (onChangeFunction instanceof Function)
+			this.measure._onChangeFunctions.push(onChangeFunction);
+	}
+
+	valueOf() {
+		return this.measure._value;	
+	}
+	
+	set value(value) {
+		if (typeof(value) === "number") {
+			const oldValue = this.measure._value;
+			this.measure._value = value;
+			for (const func of this.measure._onChangeFunctions) 
+				func(oldValue, value);
+		} else {
+			console.error("Value must be a number!");
+		}
+	}	
+}
+
 /** Class with general appearence/manipulate methods for Shapes and Entities. */
 class Style {
 	style = {
-		_measure: {value: 1}, _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
+		_measure: new Measure(1), _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
 		_fill: true, _hidden: false, _bgColor:"transparent", _lineWidth:1
 	};
 
@@ -82,7 +118,7 @@ class Style {
 			cX = container.x;
 			cY = container.y;
 		} else {
-			console.log("%c" + container.constructor.name + " isn't a valid container to align an element!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;");
+			console.error("%c" + container.constructor.name + " isn't a valid container to align an element!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 			return;
 		}
 
@@ -114,8 +150,8 @@ class Style {
         }
     }
 	
-	/** Multiplicative measure in pixels. */
-	get measure() { return this.style._measure.value }
+	/** Custom measure in pixels. */
+	get measure() { return this.style._measure }
 	/** Margin X in measure. */
 	get marginMeasureX() { return this.style._marginMeasureX }
 	/** Margin Y in measure. */
@@ -134,7 +170,7 @@ class Style {
 	get bgColor() { return this.style._bgColor }
 	get lineWidth() { return this.style._lineWidth }
 
-	set measure(measure) { this.style._measure = typeof(measure.value) === "number" ? measure : this.style._measure }
+	set measure(measure) { this.style._measure = measure instanceof Measure || typeof(measure) === "number" ? measure : this.style._measure }
 	set marginMeasureX(measurePosition) { this.style._marginMeasureX = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureX }
 	set marginMeasureY(measurePosition) { this.style._marginMeasureY = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureY }
 	set marginX(pixels) { this.style._marginX = typeof(pixels) === "number" ? pixels : this.style._marginX }
@@ -163,15 +199,15 @@ class Entity extends Style {
 	}
 
 	create(context) {
-		console.log("%c" + this.constructor.name + " don't have a create method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;")
+		console.error("%c" + this.constructor.name + " don't have a create method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
-		console.log("%c" + this.constructor.name + " don't have a move method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;")
+		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
 	hasCollision(marginMeasureX, marginMeasureY) {
-		console.log("%c" + this.constructor.name + " don't have a hasCollision method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;")
+		console.error("%c" + this.constructor.name + " don't have a hasCollision method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 	
 	align(alignDirection, container) {
@@ -199,10 +235,21 @@ class Shape extends Style {
 		this.bgColor = bgColor;
 	}
 
-	/** Returns the width in pixels.  */
-	get width() { return this.style._width }
-	/** Returns the height in pixels.  */
-	get height() { return this.style._height }
+	/** Returns the absolute value of the width in pixels.  */
+	get width() {
+		if (this.style._width instanceof Measure) {
+			return this.style._width.valueOf();
+		}
+		return this.style._width;
+	}
+
+	/** Returns the absolute value of the height in pixels.  */
+	get height() {
+		if (this.style._height instanceof Measure) {
+			return this.style._height.valueOf();
+		}
+		return this.style._height;
+	}
 
 	set width(size) { this.style._width = size ?? 0 }
 	set height(size) { this.style._height = size ?? 0 }
@@ -212,11 +259,11 @@ class Shape extends Style {
 	}
 
 	create(context) {
-		console.log("%c" + this.constructor.name + " don't have a create method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;");
+		console.error("%c" + this.constructor.name + " don't have a create method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
-		console.log("%c" + this.constructor.name + " don't have a move method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;");
+		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
 	/** Returns the coordinate (y) of the top border of Shape. */
@@ -326,12 +373,12 @@ class ComplexObject extends Rectangle {
 		if (reverse) shapes.reverse();
 		if (unshift) {
 			for (const shape of shapes) {
-				shape.move(this.marginMeasureX, this.marginMeasureY, this.marginX, this.marginY);
+				shape.move(0, 0, this.x, this.y);
 				this.shapes.unshift(shape);
 			}
 		} else {
 			for (const shape of shapes) {
-				shape.move(this.marginMeasureX, this.marginMeasureY, this.marginX, this.marginY);
+				shape.move(0, 0, this.x, this.y);
 				this.shapes.push(shape);
 			}
 		}
