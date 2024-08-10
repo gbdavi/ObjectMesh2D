@@ -7,8 +7,14 @@ class Canvas2D {
 		this.canvas.height = height;
 		this.context = this.canvas.getContext("2d");
 
-		/** Elements to manipulate in the Canvas. */
-		this.elements = [];
+		/** Background elements */
+		this.backLayer = [];
+		
+		/** Foreground elements */
+		this.mainLayer = [];
+		
+		/** Overlay elements */
+		this.frontLayer = [];
 	}
 
 	get x() { return this.canvas.style.left }
@@ -24,7 +30,13 @@ class Canvas2D {
 	/** Rewrite each element from elements. */
 	refresh() {
 		this.clear();
-		for (const element of this.elements) {
+		for (const element of this.backLayer) {
+			element.create(this.context);
+		}
+		for (const element of this.mainLayer) {
+			element.create(this.context);
+		}
+		for (const element of this.frontLayer) {
 			element.create(this.context);
 		}
 	}
@@ -43,7 +55,8 @@ class Canvas2D {
 /** Class with general appearence/manipulate methods for Shapes and Entities. */
 class Style {
 	style = {
-		fill:true, hidden:false, bgColor:"transparent", lineWidth:1
+		_measure: {value: 1}, _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
+		_fill: true, _hidden: false, _bgColor:"transparent", _lineWidth:1
 	};
 
 	/** Align a Shape with it's container or another element. */
@@ -100,65 +113,64 @@ class Style {
 				break;
         }
     }
+	
+	/** Multiplicative measure in pixels. */
+	get measure() { return this.style._measure.value }
+	/** Margin X in measure. */
+	get marginMeasureX() { return this.style._marginMeasureX }
+	/** Margin Y in measure. */
+	get marginMeasureY() { return this.style._marginMeasureY }
+	/** Margin X in pixel. */ 
+	get marginX() { return this.style._marginX }
+	/** Margin Y in pixel. */ 
+	get marginY() { return this.style._marginY }
+	/** Coordinate X in pixels */
+	get x() { return (this.marginMeasureX * this.measure) + this.marginX }
+	/** Coordinate Y in pixels */
+	get y() { return (this.marginMeasureY * this.measure) + this.marginY }
 
-	get fill() { return this.style.fill }
-	get hidden() { return this.style.hidden }
-	get bgColor() { return this.style.bgColor }
-	get lineWidth() { return this.style.lineWidth }
+	get fill() { return this.style._fill }
+	get hidden() { return this.style._hidden }
+	get bgColor() { return this.style._bgColor }
+	get lineWidth() { return this.style._lineWidth }
 
-	set fill(fill) { this.style.fill = fill === true ? true : false }
-	set hidden(value) { this.style.hidden = value === false ? false : true }
-	set bgColor(color) { this.style.bgColor = typeof(color) === "string" ? color : "transparent" }
-	set lineWidth(size) { this.style.lineWidth = typeof(size) === "number" ? size : 1 }
+	set measure(measure) { this.style._measure = typeof(measure.value) === "number" ? measure : this.style._measure }
+	set marginMeasureX(measurePosition) { this.style._marginMeasureX = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureX }
+	set marginMeasureY(measurePosition) { this.style._marginMeasureY = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureY }
+	set marginX(pixels) { this.style._marginX = typeof(pixels) === "number" ? pixels : this.style._marginX }
+	set marginY(pixels) { this.style._marginY = typeof(pixels) === "number" ? pixels : this.style._marginY }
+
+	set fill(fill) { this.style._fill = fill === true ? true : false }
+	set hidden(value) { this.style._hidden = value === false ? false : true }
+	set bgColor(color) { this.style._bgColor = typeof(color) === "string" ? color : "transparent" }
+	set lineWidth(size) { this.style._lineWidth = typeof(size) === "number" ? size : 1 }
 }
 
 /** Generic class for Entities. */
 class Entity extends Style {
 	static idCount = 0;
-	/** A custom unity of measure. (ratio in pixel) */ measureSize;
-	position = {
-		/** The quantity of the custom unity of measure on the X axis. */ measureX: 0, 
-		/** The quantity of the custom unity of measure on the Y axis. */ measureY: 0,
-		/** Margin X in pixel. */ marginX: 0,
-		/** Margin Y in pixel. */ marginY: 0
-	}
 
-	constructor(measureSize, measureX, measureY, marginX, marginY) {
+	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY) {
 		super();
 		Entity.idCount++;
 
 		this.id = Entity.idCount;
-		this.measureSize = (measureSize ?? {value:1});
-		this.measureX = (measureX ?? 0);
-		this.measureY = (measureY ?? 0);
-		this.marginX = (marginX ?? 0);
-		this.marginY = (marginY ?? 0);
+		this.measure = measure;
+		this.marginMeasureX = marginMeasureX;
+		this.marginMeasureY = marginMeasureY;
+		this.marginX = marginX;
+		this.marginY = marginY;
 	}
-
-	/** Coordinates in pixels in the X axis */
-	get x() { return (this.position.measureX*this.measureSize.value) + this.position.marginX }
-	/** Coordinates in pixels in the Y axis */
-	get y() { return (this.position.measureY*this.measureSize.value) + this.position.marginY }
-
-	get measureX() { return this.position.measureX }
-	get measureY() { return this.position.measureY }
-	get marginX() { return this.position.marginX }
-	get marginY() { return this.position.marginY }
-
-	set measureX(position) { this.position.measureX = position ?? this.measureX }
-	set measureY(position) { this.position.measureY = position ?? this.measureY }
-	set marginX(pixels) { this.position.marginX = pixels ?? this.marginX }
-	set marginY(pixels) { this.position.marginY = pixels ?? this.marginY }
 
 	create(context) {
 		console.log("%c" + this.constructor.name + " don't have a create method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;")
 	}
 
-	move(measureX, measureY, marginX, marginY) {
+	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.log("%c" + this.constructor.name + " don't have a move method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;")
 	}
 
-	hasCollision(measureX, measureY) {
+	hasCollision(marginMeasureX, marginMeasureY) {
 		console.log("%c" + this.constructor.name + " don't have a hasCollision method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;")
 	}
 	
@@ -170,73 +182,30 @@ class Entity extends Style {
 /** Generic class for Shapes. */
 class Shape extends Style {
 	static idCount = 0;
-	/** A custom unity of measure. (ratio in pixel) */ measureSize;
-	position = {
-		/** The quantity of the custom unity of measure on the X axis. */ measureX: 0, 
-		/** The quantity of the custom unity of measure on the Y axis. */ measureY: 0,
-		/** Margin X in pixel. */ marginX: 0,
-		/** Margin Y in pixel. */ marginY: 0
-	}
 
-	constructor(measureSize, measureX, measureY, marginX, marginY, width, height, bgColor) {
+	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, bgColor) {
 		super();
 		Shape.idCount++;
 
 		this.id = Shape.idCount;
-		this.measureSize = (measureSize ?? {value:1});
-		this.measureX = (measureX ?? 0);
-		this.measureY = (measureY ?? 0);
-		this.marginX = (marginX ?? 0);
-		this.marginY = (marginY ?? 0);
+		this.measure = measure;
+		this.marginMeasureX = marginMeasureX;
+		this.marginMeasureY = marginMeasureY;
+		this.marginX = marginX;
+		this.marginY = marginY;
 
-		this.width = (width ?? 0);
-		this.height = (height ?? 0);
+		this.width = width;
+		this.height = height;
 		this.bgColor = bgColor;
 	}
 
-	/** Coordinates in pixels in the X axis */
-	get x() { return (this.position.measureX*this.measureSize.value) + this.position.marginX }
-	/** Coordinates in pixels in the Y axis */
-	get y() { return (this.position.measureY*this.measureSize.value) + this.position.marginY }
+	/** Returns the width in pixels.  */
+	get width() { return this.style._width }
+	/** Returns the height in pixels.  */
+	get height() { return this.style._height }
 
-	get measureX() { return this.position.measureX }
-	get measureY() { return this.position.measureY }
-	get marginX() { return this.position.marginX }
-	get marginY() { return this.position.marginY }
-
-	set measureX(position) { this.position.measureX = position ?? this.measureX }
-	set measureY(position) { this.position.measureY = position ?? this.measureY }
-	set marginX(pixels) { this.position.marginX = pixels ?? this.marginX }
-	set marginY(pixels) { this.position.marginY = pixels ?? this.marginY }
-
-	/** Returns the absolute value of the width or the first value if setted an Object.  */
-	get width() {
-		if (this.style.width instanceof Object) {
-			for (const key in this.style.width) {
-				if (this.style.width[key] instanceof Function) {
-					return this.style.width[key]();
-				}
-				return this.style.width[key];
-			}
-		}
-		return this.style.width
-	}
-
-	/** Returns the absolute value of the height or the first value if setted an Object.  */
-	get height() {
-		if (this.style.height instanceof Object) {
-			for (const key in this.style.height) {
-				if (this.style.height[key] instanceof Function) {
-					return this.style.height[key]();
-				}
-				return this.style.height[key];
-			}
-		}
-		return this.style.height
-	}
-
-	set width(size) { this.style.width = size }
-	set height(size) { this.style.height = size }
+	set width(size) { this.style._width = size ?? 0 }
+	set height(size) { this.style._height = size ?? 0 }
 	
 	align(alignDirection, container) {
 		Style.align(alignDirection, this, container);
@@ -246,26 +215,26 @@ class Shape extends Style {
 		console.log("%c" + this.constructor.name + " don't have a create method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
-	move(measureX, measureY, marginX, marginY) {
+	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.log("%c" + this.constructor.name + " don't have a move method!", "background: #222; color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
-	/** Returns the coordinates (y) of the top border of Shape. */
+	/** Returns the coordinate (y) of the top border of Shape. */
 	offsetTop() {
 		return this.y;
 	}
 	
-	/** Returns the coordinates (y) of the bottom border of Shape. */
+	/** Returns the coordinate (y) of the bottom border of Shape. */
 	offsetBottom() {
 		return this.y + this.height;
 	}
 	
-	/** Returns the coordinates (x) of the left border of Shape. */
+	/** Returns the coordinate (x) of the left border of Shape. */
 	offsetLeft() {
 		return this.x;
 	}
 	
-	/** Returns the coordinates (x) of the right border of Shape. */
+	/** Returns the coordinate (x) of the right border of Shape. */
 	offsetRight() {
 		return this.x + this.width;
 	}   
@@ -273,8 +242,8 @@ class Shape extends Style {
 
 /** Shape class for Rectangles. */
 class Rectangle extends Shape {	
-	constructor (measureSize, measureX, measureY, marginX, marginY, width, height, bgColor, round) {
-		super(measureSize, measureX, measureY, marginX, marginY, width, height, bgColor);
+	constructor (measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, bgColor, round) {
+		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, bgColor);
 		this.round = round;
 	}
 	
@@ -296,16 +265,16 @@ class Rectangle extends Shape {
 	}
 
 	/** Increment the Rectangle coordinates. */
-	move(measureX=0, measureY=0, marginX=0, marginY=0) {
-		this.measureX += measureX;
-		this.measureY += measureY;
+	move(marginMeasureX=0, marginMeasureY=0, marginX=0, marginY=0) {
+		this.marginMeasureX += marginMeasureX;
+		this.marginMeasureY += marginMeasureY;
 		this.marginX += marginX;
 		this.marginY += marginY;
 	}
 
 	/** Set the border rounding for the Rectangle. */
-	get round() { return this.style.round }
-	set round(round) { this.style.round = round ?? [0] }
+	get round() { return this.style._round }
+	set round(round) { this.style._round = round ?? [0] }
 }
 
 /** Container to group Shapes.
@@ -315,8 +284,8 @@ class ComplexObject extends Rectangle {
 	/** Groupped Shapes */
 	shapes = [];
 
-	constructor(measureSize, measureX, measureY, marginX, marginY, width, height, shapes) {
-		super(measureSize, measureX, measureY, marginX, marginY, width, height, "transparent", 1);
+	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, shapes) {
+		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, "transparent", 1);
 		this.addShapes(shapes ?? []);
 		this.showDisplayArea = false;
 		this.bgColor = "pink";
@@ -327,8 +296,8 @@ class ComplexObject extends Rectangle {
 	 ** Note that the Shapes will be hidden.
 	 ** Use the bgColor method to change the display area color.
 	 */
-	get showDisplayArea() { return this.style.showDisplayArea }
-	set showDisplayArea(value) { this.style.showDisplayArea = value !== false ? true : false }
+	get showDisplayArea() { return this.style._showDisplayArea }
+	set showDisplayArea(value) { this.style._showDisplayArea = value !== false ? true : false }
 		
 	/** Create the ComplexObject Shapes in Canvas context. */
 	create(context) {
@@ -345,10 +314,10 @@ class ComplexObject extends Rectangle {
 	}
 
 	/** Increment the ComplexObject Shapes coordinates. */
-	move(measureX=0, measureY=0, marginX=0, marginY=0) {
-		super.move(measureX, measureY, marginX, marginY);
+	move(marginMeasureX=0, marginMeasureY=0, marginX=0, marginY=0) {
+		super.move(marginMeasureX, marginMeasureY, marginX, marginY);
 		for (const shape of this.shapes) {
-			shape.move(measureX, measureY, marginX, marginY);
+			shape.move(marginMeasureX, marginMeasureY, marginX, marginY);
 		}
 	}
 
@@ -357,12 +326,12 @@ class ComplexObject extends Rectangle {
 		if (reverse) shapes.reverse();
 		if (unshift) {
 			for (const shape of shapes) {
-				shape.move(this.measureX, this.measureY, this.marginX, this.marginY);
+				shape.move(this.marginMeasureX, this.marginMeasureY, this.marginX, this.marginY);
 				this.shapes.unshift(shape);
 			}
 		} else {
 			for (const shape of shapes) {
-				shape.move(this.measureX, this.measureY, this.marginX, this.marginY);
+				shape.move(this.marginMeasureX, this.marginMeasureY, this.marginX, this.marginY);
 				this.shapes.push(shape);
 			}
 		}
@@ -371,8 +340,8 @@ class ComplexObject extends Rectangle {
 
 /** Shape class for images. */
 class Img extends Shape {
-	constructor(imgSrc, measureSize, measureX, measureY, marginX, marginY, width, height) {
-		super(measureSize, measureX, measureY, marginX, marginY, width, height, "");
+	constructor(imgSrc, measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height) {
+		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, "");
 		this.img = new Image(width, height);
 		this.img.src = imgSrc;
 	}
@@ -385,9 +354,9 @@ class Img extends Shape {
 	}
 
 	/** Increment the Img coordinates. */
-	move(measureX=0, measureY=0, marginX=0, marginY=0) {
-		this.measureX += measureX;
-		this.measureY += measureY;
+	move(marginMeasureX=0, marginMeasureY=0, marginX=0, marginY=0) {
+		this.marginMeasureX += marginMeasureX;
+		this.marginMeasureY += marginMeasureY;
 		this.marginX += marginX;
 		this.marginY += marginY;
 	}
@@ -395,8 +364,8 @@ class Img extends Shape {
 
 /** Shape class for text. */
 class CText extends Shape {
-	constructor(measureSize, x, y, marginX, marginY, maxWidth, text, color, bgColor, fontSize, fontWeight, fontFamily) {
-		super(measureSize, x, y, marginX, marginY, maxWidth, undefined, bgColor);
+	constructor(measure, x, y, marginX, marginY, maxWidth, text, color, bgColor, fontSize, fontWeight, fontFamily) {
+		super(measure, x, y, marginX, marginY, maxWidth, undefined, bgColor);
 		this.text = text ?? "";
 		this.fontSize = fontSize;
 
@@ -404,7 +373,7 @@ class CText extends Shape {
 		this.fontWeight = fontWeight;
 		this.fontFamily = fontFamily;
 		
-		this.bg = new Rectangle(measureSize, x, y, marginX, marginY, this.width, this.height, this.bgColor);
+		this.bg = new Rectangle(measure, x, y, marginX, marginY, this.width, this.height, this.bgColor);
 		this.yCorrection(0, this.fontSize);
 	}
 
@@ -417,46 +386,45 @@ class CText extends Shape {
 		return stdContext.measureText(this.text).width;
 	}
 	get height() { return this.getLineCount()*this.fontSize }
-	get fontSize() { return this.style.fontSize }
-	get color() { return this.style.color }
-	get fontWeight() { return this.style.fontWeight }
-	get fontFamily() { return this.style.fontFamily }
+	get fontSize() { return this.style._fontSize }
+	get color() { return this.style._color }
+	get fontWeight() { return this.style._fontWeight }
+	get fontFamily() { return this.style._fontFamily }
 
 	
-	set width(width) { this.style.width = typeof(width) === "number" ? width : undefined }
-	set height(height) { this.style.height = typeof(height) === "number" ? height : this.height }
-	// set fontSize(size) { this.style.fontSize = typeof(size) === "number" ? size : 16 }
+	set width(width) { this.style._width = typeof(width) === "number" ? width : undefined }
+	set height(height) { this.style._height = typeof(height) === "number" ? height : this.height }
 	set fontSize(fontSize) {
 		const newFontSize = typeof(fontSize) === "number" ? fontSize : 16;
-		this.yCorrection(this.style.fontSize, newFontSize);
-		this.style.fontSize = newFontSize;
+		this.yCorrection(this.style._fontSize, newFontSize);
+		this.style._fontSize = newFontSize;
 	}
-	set color(color) { this.style.color = color ?? "black" }
-	set fontWeight(fontWeight) { this.style.fontWeight = fontWeight ?? "normal" }
-	set fontFamily(family) { this.style.fontFamily = family ?? "sans-serif" }	
+	set color(color) { this.style._color = color ?? "black" }
+	set fontWeight(fontWeight) { this.style._fontWeight = fontWeight ?? "normal" }
+	set fontFamily(family) { this.style._fontFamily = family ?? "sans-serif" }	
 
 	/** Create the CText in Canvas context. */
 	create(context) {
 		this.bg.create(context);
-		context.font = this.style.fontWeight + " " + this.style.fontSize + "px " + this.style.fontFamily;
-		context.fillStyle = this.style.color;
+		context.font = this.style._fontWeight + " " + this.style._fontSize + "px " + this.style._fontFamily;
+		context.fillStyle = this.style._color;
 		context.textBaseline = "bottom";
 		context.fillText( this.text, this.x, this.y );
 	}
 
 	/** Increment the CText coordinates. */
-	move(measureX=0, measureY=0, marginX=0, marginY=0) {
-		this.measureX += measureX;
-		this.measureY += measureY;
+	move(marginMeasureX=0, marginMeasureY=0, marginX=0, marginY=0) {
+		this.marginMeasureX += marginMeasureX;
+		this.marginMeasureY += marginMeasureY;
 		this.marginX += marginX;
 		this.marginY += marginY;
-		this.bg.move(measureX, measureY, marginX, marginY);
+		this.bg.move(marginMeasureX, marginMeasureY, marginX, marginY);
 	}
 
 	/** Recalculate values when font size change. */
 	yCorrection(currentFontSize, newFontSize) {
-		const currentTotalLines = this.style.width ? Math.ceil((this.text.length*currentFontSize) / this.width) : 1;
-		const newTotalLines = this.style.width ? Math.ceil((this.text.length*newFontSize) / this.height) : 1;
+		const currentTotalLines = this.style._width ? Math.ceil((this.text.length*currentFontSize) / this.width) : 1;
+		const newTotalLines = this.style._width ? Math.ceil((this.text.length*newFontSize) / this.height) : 1;
 		const correction = (newTotalLines*newFontSize) - (currentTotalLines*currentFontSize);
 		this.marginX += 2;
 		this.marginY += correction + 2;
