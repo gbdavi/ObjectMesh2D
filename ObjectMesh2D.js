@@ -55,7 +55,7 @@ class Canvas2D {
 /** Custom measure in pixels */
 class Measure {
 	constructor(measureValue, baseMeasure) {
-		this.measure = {  _onChangeFunctions: [] };
+		this.measure = {  _onChangeFunctions: [], _dependentObjects: [] };
 
 		if (typeof(measureValue) === "number") {
 			this.value = measureValue;
@@ -72,6 +72,12 @@ class Measure {
 			this.measure._onChangeFunctions.push(onChangeFunction);
 	}
 
+	addDependentObject(dependentObject) {
+		if (dependentObject instanceof Shape || dependentObject instanceof Entity)
+			if (!this.measure._dependentObjects.includes(dependentObject))
+				this.measure._dependentObjects.push(dependentObject);
+	}
+
 	valueOf() {
 		return this.measure._value;	
 	}
@@ -82,6 +88,9 @@ class Measure {
 			this.measure._value = value;
 			for (const func of this.measure._onChangeFunctions) 
 				func(oldValue, value);
+			const dependentObjectsParentElement = this.measure._dependentObjects.filter(object => object.parentElement).map(object => object.parentElement);
+			for (const parentElement of dependentObjectsParentElement)
+				object.parentElement.updateChilds();
 		} else {
 			console.error("Value must be a number!");
 		}
@@ -90,39 +99,63 @@ class Measure {
 
 /** Class with general appearence/manipulate methods for Shapes and Entities. */
 class Style {
+	_parentElement;
 	style = {
 		_measure: new Measure(1), _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
-		_fill: true, _hidden: false, _bgColor:"transparent", _lineWidth:1
+		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1
 	};
 
-	/** Align a Shape with it's container or another element. */
-	static align(alignDirection, element, container) {
+	/** Align a Shape with another element by X axis. */
+	static alignX(alignDirection, element, container) {
 		let cWidth;
-		let cHeight;
 		let cX;
-		let cY;
 
 		if (container instanceof Canvas2D) {
 			cWidth = container.width;
-			cHeight = container.height;
 			cX = 0;
-			cY = 0;
 		} else if (container instanceof Shape) {
 			cWidth = container.width;
-			cHeight = container.height;
 			cX = container.x;
-			cY = container.y;
 		} else if (container instanceof Entity) {
 			cWidth = 0;
-			cHeight = 0;
 			cX = container.x;
-			cY = container.y;
 		} else {
-			console.error("%c" + container.constructor.name + " isn't a valid container to align an element!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+			console.error("%c" + container.constructor.name + " isn't a valid element to align an element!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 			return;
 		}
 
-		let biasX = 0;
+        switch (alignDirection) {
+			case "left":
+				element.move(0, 0, (cX-element.x), 0);
+				break;
+            case "center":		
+				element.move(0, 0, ((cWidth - element.width)/2) - (element.x - cX), 0);				
+                break;
+			case "right":
+				element.move(0, 0, (cWidth - element.width) + (cX - element.x), 0);
+				break;
+        }
+    }
+
+	/** Align a Shape with another element by Y axis. */
+	static alignY(alignDirection, element, container) {
+		let cHeight;
+		let cY;
+
+		if (container instanceof Canvas2D) {
+			cHeight = container.height;
+			cY = 0;
+		} else if (container instanceof Shape) {
+			cHeight = container.height;
+			cY = container.y;
+		} else if (container instanceof Entity) {
+			cHeight = 0;
+			cY = container.y;
+		} else {
+			console.error("%c" + container.constructor.name + " isn't a valid element to align an element!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+			return;
+		}
+
 		let biasY = 0;
 		if (element instanceof CText) {
 			biasY += element.style.fontSize;
@@ -132,17 +165,8 @@ class Style {
 			case "top":
 				element.move(0, 0, 0, (cY-element.y) + biasY);
 				break;
-			case "left":
-				element.move(0, 0, (cX-element.x) + biasX, 0);
-				break;
-            case "centerX":		
-				element.move(0, 0, ((cWidth - element.width)/2) - (element.x - cX) + biasX, 0);				
-                break;
-			case "centerY":
+			case "center":
 				element.move(0, 0, 0, ((cHeight - element.height)/2) - (element.y - cY) + biasY);
-				break;
-			case "right":
-				element.move(0, 0, (cWidth - element.width) + (cX - element.x) + biasX, 0);
 				break;
 			case "bottom":
 				element.move(0, 0, 0, (cHeight - element.height) + (cY - element.y) + biasY);
@@ -165,6 +189,7 @@ class Style {
 	/** Coordinate Y in pixels */
 	get y() { return (this.marginMeasureY * this.measure) + this.marginY }
 
+	get parentElement() { return this._parentElement }
 	get fill() { return this.style._fill }
 	get hidden() { return this.style._hidden }
 	get bgColor() { return this.style._bgColor }
@@ -176,6 +201,9 @@ class Style {
 	set marginX(pixels) { this.style._marginX = typeof(pixels) === "number" ? pixels : this.style._marginX }
 	set marginY(pixels) { this.style._marginY = typeof(pixels) === "number" ? pixels : this.style._marginY }
 
+	set parentElement(parentElement) {
+		this._parentElement = parentElement instanceof ComplexObject ? parentElement : this._parentElement;
+	}
 	set fill(fill) { this.style._fill = fill === true ? true : false }
 	set hidden(value) { this.style._hidden = value === false ? false : true }
 	set bgColor(color) { this.style._bgColor = typeof(color) === "string" ? color : "transparent" }
@@ -229,6 +257,11 @@ class Shape extends Style {
 		this.width = width;
 		this.height = height;
 		this.bgColor = bgColor;
+
+		for (const value of [...new Set([measure, width, height])]) {
+			if (value instanceof Measure)
+				value.addDependentObject(this);
+		}
 	}
 
 	/** Returns the absolute value of the width in pixels.  */
@@ -338,6 +371,13 @@ class ComplexObject extends Rectangle {
 	 */
 	get showDisplayArea() { return this.style._showDisplayArea }
 	set showDisplayArea(value) { this.style._showDisplayArea = value !== false ? true : false }
+
+
+	get alignX() { return this.style._alignX }
+	get alignY() { return this.style._alignY }
+
+	set alignX(direction) { this.style._alignX = direction }
+	set alignY(direction) { this.style._alignY = direction }
 		
 	/** Create the ComplexObject Shapes in Canvas context. */
 	create(context) {
@@ -366,29 +406,25 @@ class ComplexObject extends Rectangle {
 		if (reverse) shapes.reverse();
 		if (unshift) {
 			for (const shape of shapes) {
-				Style.align(this.style._alignX, shape, this);
-				Style.align(this.style._alignY, shape, this);
+				shape.parentElement = this;
+				Style.alignX(this.style._alignX, shape, this);
+				Style.alignY(this.style._alignY, shape, this);
 				this.shapes.unshift(shape);
 			}
 		} else {
 			for (const shape of shapes) {
-				Style.align(this.style._alignX, shape, this);
-				Style.align(this.style._alignY, shape, this);
+				shape.parentElement = this;
+				Style.alignX(this.style._alignX, shape, this);
+				Style.alignY(this.style._alignY, shape, this);
 				this.shapes.push(shape);
 			}
 		}
 	}
 
-	alignX(direction) {
-		this.style._alignX = direction;
-	}
-
-	alignY(direction) {
-		this.style._alignY = direction;
-	}
-
 	updateChilds() {
+		for (const child of this.shapes) {
 
+		}
 	}
 }
 
