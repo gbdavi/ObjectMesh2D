@@ -90,7 +90,7 @@ class Measure {
 				func(oldValue, value);
 			const dependentObjectsParentElement = this.measure._dependentObjects.filter(object => object.parentElement).map(object => object.parentElement);
 			for (const parentElement of dependentObjectsParentElement)
-				object.parentElement.updateChilds();
+				parentElement.updateChilds();
 		} else {
 			console.error("Value must be a number!");
 		}
@@ -422,8 +422,9 @@ class ComplexObject extends Rectangle {
 	}
 
 	updateChilds() {
-		for (const child of this.shapes) {
-
+		for (const shape of this.shapes) {
+			Style.alignX(this.style._alignX, shape, this);
+			Style.alignY(this.style._alignY, shape, this);
 		}
 	}
 }
