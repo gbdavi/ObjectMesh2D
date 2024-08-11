@@ -60,8 +60,8 @@ class Measure {
 		if (typeof(measureValue) === "number") {
 			this.value = measureValue;
 		} else if (measureValue instanceof Function && baseMeasure instanceof Measure) {
-			this.value = measureValue(baseMeasure);
-			baseMeasure.addOnChangeFunction(measureValue);
+			this.value = measureValue(baseMeasure, baseMeasure);
+			baseMeasure.addOnChangeFunction((...params) => this.value = measureValue(...params));
 		} else {
 			this.value = 1;
 		}
@@ -209,10 +209,6 @@ class Entity extends Style {
 	hasCollision(marginMeasureX, marginMeasureY) {
 		console.error("%c" + this.constructor.name + " don't have a hasCollision method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
-	
-	align(alignDirection, container) {
-		Style.align(alignDirection, this, container);
-	}
 }
 
 /** Generic class for Shapes. */
@@ -253,10 +249,6 @@ class Shape extends Style {
 
 	set width(size) { this.style._width = size ?? 0 }
 	set height(size) { this.style._height = size ?? 0 }
-	
-	align(alignDirection, container) {
-		Style.align(alignDirection, this, container);
-	}
 
 	create(context) {
 		console.error("%c" + this.constructor.name + " don't have a create method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
@@ -333,6 +325,7 @@ class ComplexObject extends Rectangle {
 
 	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, shapes) {
 		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, "transparent", 1);
+				
 		this.addShapes(shapes ?? []);
 		this.showDisplayArea = false;
 		this.bgColor = "pink";
@@ -373,15 +366,29 @@ class ComplexObject extends Rectangle {
 		if (reverse) shapes.reverse();
 		if (unshift) {
 			for (const shape of shapes) {
-				shape.move(0, 0, this.x, this.y);
+				Style.align(this.style._alignX, shape, this);
+				Style.align(this.style._alignY, shape, this);
 				this.shapes.unshift(shape);
 			}
 		} else {
 			for (const shape of shapes) {
-				shape.move(0, 0, this.x, this.y);
+				Style.align(this.style._alignX, shape, this);
+				Style.align(this.style._alignY, shape, this);
 				this.shapes.push(shape);
 			}
 		}
+	}
+
+	alignX(direction) {
+		this.style._alignX = direction;
+	}
+
+	alignY(direction) {
+		this.style._alignY = direction;
+	}
+
+	updateChilds() {
+
 	}
 }
 
