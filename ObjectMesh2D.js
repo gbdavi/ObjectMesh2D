@@ -7,14 +7,30 @@ class Canvas2D {
 		this.canvas.height = height;
 		this.context = this.canvas.getContext("2d");
 
+		["click"].map(eventName => this.canvas.addEventListener(eventName, this.onEvent))
+
+		// Fix onPush
+		const addOnPushCallback = (array, callback) => {
+			array.push = (element) => {
+				Array.prototype.push.call(array, element);
+				callback(array, element)
+			}
+		}
+
 		/** Background elements */
 		this.backLayer = [];
+		this._backLayerInteractive = [];
+		addOnPushCallback(this.backLayer, (_, element) => { if (element instanceof Interactive) this._backLayerInteractive.push(element) });
 		
 		/** Foreground elements */
 		this.mainLayer = [];
+		this._mainLayerInteractive = [];
+		addOnPushCallback(this.mainLayer, (_, element) => { if (element instanceof Interactive) this._mainLayerInteractive.push(element) });
 		
 		/** Overlay elements */
 		this.frontLayer = [];
+		this._frontLayerInteractive = [];
+		addOnPushCallback(this.frontLayer, (_, element) => { if (element instanceof Interactive) this._frontLayerInteractive.push(element) });
 	}
 
 	get x() { return this.canvas.style.left }
@@ -49,6 +65,25 @@ class Canvas2D {
 	/** Returns a blank context. */
 	static getNewStandardContext() {
 		return document.createElement("Canvas").getContext("2d");
+	}
+
+	onEvent(event) {
+		console.log({event})
+		switch(event.type) {
+			case "click": {
+				const { offsetX, offsetY } = event;
+
+				for (const element of this.backLayer) {
+					// element.create(this.context);
+				}
+				for (const element of this.mainLayer) {
+					// element.create(this.context);
+				}
+				for (const element of this.frontLayer) {
+					// element.create(this.context);
+				}
+			}
+		}
 	}
 }
 
@@ -194,6 +229,7 @@ class Style {
 	get hidden() { return this.style._hidden }
 	get bgColor() { return this.style._bgColor }
 	get lineWidth() { return this.style._lineWidth }
+	get zIndex() { return this.style._zIndex ?? 1 }
 
 	set measure(measure) { this.style._measure = measure instanceof Measure || typeof(measure) === "number" ? measure : this.style._measure }
 	set marginMeasureX(measurePosition) { this.style._marginMeasureX = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureX }
@@ -208,6 +244,7 @@ class Style {
 	set hidden(value) { this.style._hidden = value === false ? false : true }
 	set bgColor(color) { this.style._bgColor = typeof(color) === "string" ? color : "transparent" }
 	set lineWidth(size) { this.style._lineWidth = typeof(size) === "number" ? size : 1 }
+	set zIndex(value) { this.style._zIndex = value }
 }
 
 /** Generic class for Entities. */
@@ -533,8 +570,9 @@ class CText extends Shape {
 /** Class for user interaction. */
 class Interactive extends ComplexObject {
 
-	constructor(x, y, width, height, shapes) {
+	constructor(x, y, width, height, shapes, zIndex) {
 		super(x, y, width, height, shapes);
+		this.zIndex = zIndex;
 	}
 
 	/** Action when Interactive object is clicked. */
@@ -552,5 +590,12 @@ class Interactive extends ComplexObject {
 	/** Action when mouse out the Interactive object. */
 	onMouseOut = () => {}
 	
-	// onLoad = () => {}	
+	// onLoad = () => {}
+
+	isInside = (x, y) => {
+		if (x < this.offsetLeft() || y < this.offsetTop() || 
+			x > this.offsetRight() || y > this.offsetBottom() )	
+			return false;
+		return true;
+	}
 }
