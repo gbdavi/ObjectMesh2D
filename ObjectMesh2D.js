@@ -7,30 +7,30 @@ class Canvas2D {
 		this.canvas.height = height;
 		this.context = this.canvas.getContext("2d");
 
-		["click"].map(eventName => this.canvas.addEventListener(eventName, this.onEvent))
-
-		// Fix onPush
-		const addOnPushCallback = (array, callback) => {
-			array.push = (element) => {
-				Array.prototype.push.call(array, element);
-				callback(array, element)
-			}
-		}
-
 		/** Background elements */
 		this.backLayer = [];
 		this._backLayerInteractive = [];
-		addOnPushCallback(this.backLayer, (_, element) => { if (element instanceof Interactive) this._backLayerInteractive.push(element) });
 		
 		/** Foreground elements */
 		this.mainLayer = [];
 		this._mainLayerInteractive = [];
-		addOnPushCallback(this.mainLayer, (_, element) => { if (element instanceof Interactive) this._mainLayerInteractive.push(element) });
 		
 		/** Overlay elements */
 		this.frontLayer = [];
 		this._frontLayerInteractive = [];
-		addOnPushCallback(this.frontLayer, (_, element) => { if (element instanceof Interactive) this._frontLayerInteractive.push(element) });
+
+		const getTargetElement = (x, y) => {
+			return this._frontLayerInteractive.findLast((element) => element?.isInside(x, y))
+				?? this._mainLayerInteractive.findLast((element) => element?.isInside(x, y))
+				?? this._backLayerInteractive.findLast((element) => element?.isInside(x, y));
+		}
+
+		const lastEventsTarget = {};
+		["click", "mousedown", "mouseup", "mousemove"].map(eventName => 
+			this.canvas.addEventListener(eventName, (event) => {
+				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
+			})
+		);
 	}
 
 	get x() { return this.canvas.style.left }
@@ -67,21 +67,71 @@ class Canvas2D {
 		return document.createElement("Canvas").getContext("2d");
 	}
 
-	onEvent(event) {
-		console.log({event})
+	onEvent(event, targetElement, lastEventsTarget) {
 		switch(event.type) {
 			case "click": {
-				const { offsetX, offsetY } = event;
+				if (!(targetElement instanceof Interactive))
+					return;
 
-				for (const element of this.backLayer) {
-					// element.create(this.context);
+				if (targetElement === lastEventsTarget.mouseDown)
+					targetElement.onClick();
+				break;			
+			}
+			case "mousedown": {
+				if (!(targetElement instanceof Interactive))
+					return;
+				
+				lastEventsTarget.mouseDown = targetElement;
+				targetElement.onMouseDown();
+				break;			
+			}
+			case "mouseup": {
+				if (!(targetElement instanceof Interactive))
+					return;
+				
+				targetElement.onMouseUp();
+				break;			
+			}
+			case "mousemove": {
+				if (lastEventsTarget.mouseEnter !== targetElement) {
+					lastEventsTarget.mouseEnter?.onMouseLeave();
+					lastEventsTarget.mouseEnter = targetElement;
+					targetElement?.onMouseEnter();
 				}
-				for (const element of this.mainLayer) {
-					// element.create(this.context);
-				}
-				for (const element of this.frontLayer) {
-					// element.create(this.context);
-				}
+				break;
+			}
+			default: {
+				console.log({type: event.type})
+			}
+		}
+	}
+
+	updateInteractiveElements() {
+		const flatElements = (element) => {
+			if (element instanceof ComplexObject) {
+				return [[element], ...element.shapes.map(flatElements)].flat();
+			}
+			return [element];
+		}
+		
+		this._backLayerInteractive = [];
+		for (const element of this.backLayer.map(flatElements).flat()) {
+			if (element instanceof Interactive) {
+				this._backLayerInteractive.push(element);
+			}
+		}
+		
+		this._mainLayerInteractive = [];
+		for (const element of this.mainLayer.map(flatElements).flat()) {
+			if (element instanceof Interactive) {
+				this._mainLayerInteractive.push(element);
+			}
+		}
+
+		this._frontLayerInteractive = [];
+		for (const element of this.frontLayer.map(flatElements).flat()) {
+			if (element instanceof Interactive) {
+				this._frontLayerInteractive.push(element);
 			}
 		}
 	}
@@ -137,7 +187,7 @@ class Style {
 	_parentElement;
 	style = {
 		_measure: new Measure(1), _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
-		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1
+		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1, _zIndex: 1
 	};
 
 	/** Align a Shape with another element by X axis. */
@@ -570,11 +620,6 @@ class CText extends Shape {
 /** Class for user interaction. */
 class Interactive extends ComplexObject {
 
-	constructor(x, y, width, height, shapes, zIndex) {
-		super(x, y, width, height, shapes);
-		this.zIndex = zIndex;
-	}
-
 	/** Action when Interactive object is clicked. */
 	onClick = () => {}
 
@@ -584,11 +629,11 @@ class Interactive extends ComplexObject {
 	/** Action when mouse button up over the Interactive object. */
 	onMouseUp = () => {}
 
-	/** Action when hovering over the Interactive object. */
-	onMouseOver = () => {}
+	/** Action when enter the Interactive object. */
+	onMouseEnter = () => {}
 
-	/** Action when mouse out the Interactive object. */
-	onMouseOut = () => {}
+	/** Action when mouse leave the Interactive object. */
+	onMouseLeave = () => {}
 	
 	// onLoad = () => {}
 
