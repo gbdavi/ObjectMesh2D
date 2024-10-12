@@ -9,12 +9,28 @@ class Canvas2D {
 
 		/** Background elements */
 		this.backLayer = [];
+		this._backLayerInteractive = [];
 		
 		/** Foreground elements */
 		this.mainLayer = [];
+		this._mainLayerInteractive = [];
 		
 		/** Overlay elements */
 		this.frontLayer = [];
+		this._frontLayerInteractive = [];
+
+		const getTargetElement = (x, y) => {
+			return this._frontLayerInteractive.findLast((element) => element?.isInside(x, y))
+				?? this._mainLayerInteractive.findLast((element) => element?.isInside(x, y))
+				?? this._backLayerInteractive.findLast((element) => element?.isInside(x, y));
+		}
+
+		const lastEventsTarget = {};
+		["click", "mousedown", "mouseup", "mousemove"].map(eventName => 
+			this.canvas.addEventListener(eventName, (event) => {
+				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
+			})
+		);
 	}
 
 	get x() { return this.canvas.style.left }
@@ -49,6 +65,75 @@ class Canvas2D {
 	/** Returns a blank context. */
 	static getNewStandardContext() {
 		return document.createElement("Canvas").getContext("2d");
+	}
+
+	onEvent(event, targetElement, lastEventsTarget) {
+		switch(event.type) {
+			case "click": {
+				if (!(targetElement instanceof Interactive))
+					return;
+
+				if (targetElement === lastEventsTarget.mouseDown)
+					targetElement.onClick();
+				break;			
+			}
+			case "mousedown": {
+				if (!(targetElement instanceof Interactive))
+					return;
+				
+				lastEventsTarget.mouseDown = targetElement;
+				targetElement.onMouseDown();
+				break;			
+			}
+			case "mouseup": {
+				if (!(targetElement instanceof Interactive))
+					return;
+				
+				targetElement.onMouseUp();
+				break;			
+			}
+			case "mousemove": {
+				if (lastEventsTarget.mouseEnter !== targetElement) {
+					lastEventsTarget.mouseEnter?.onMouseLeave();
+					lastEventsTarget.mouseEnter = targetElement;
+					targetElement?.onMouseEnter();
+				}
+				break;
+			}
+			default: {
+				console.log({type: event.type})
+			}
+		}
+	}
+
+	updateInteractiveElements() {
+		const flatElements = (element) => {
+			if (element instanceof ComplexObject) {
+				return [[element], ...element.shapes.map(flatElements)].flat();
+			}
+			return [element];
+		}
+		
+		this._backLayerInteractive = [];
+		for (const element of this.backLayer.map(flatElements).flat()) {
+			if (element instanceof Interactive) {
+				this._backLayerInteractive.push(element);
+			}
+		}
+		
+		this._mainLayerInteractive = [];
+		for (const element of this.mainLayer.map(flatElements).flat()) {
+			if (element instanceof Interactive) {
+				this._mainLayerInteractive.push(element);
+			}
+		}
+
+		this._frontLayerInteractive = [];
+		for (const element of this.frontLayer.map(flatElements).flat()) {
+			if (element instanceof Interactive) {
+				this._frontLayerInteractive.push(element);
+			}
+		}
 	}
 }
 
@@ -102,7 +187,7 @@ class Style {
 	_parentElement;
 	style = {
 		_measure: new Measure(1), _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
-		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1
+		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1, _zIndex: 1
 	};
 
 	/** Align a Shape with another element by X axis. */
@@ -194,6 +279,7 @@ class Style {
 	get hidden() { return this.style._hidden }
 	get bgColor() { return this.style._bgColor }
 	get lineWidth() { return this.style._lineWidth }
+	get zIndex() { return this.style._zIndex ?? 1 }
 
 	set measure(measure) { this.style._measure = measure instanceof Measure || typeof(measure) === "number" ? measure : this.style._measure }
 	set marginMeasureX(measurePosition) { this.style._marginMeasureX = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureX }
@@ -208,6 +294,7 @@ class Style {
 	set hidden(value) { this.style._hidden = value === false ? false : true }
 	set bgColor(color) { this.style._bgColor = typeof(color) === "string" ? color : "transparent" }
 	set lineWidth(size) { this.style._lineWidth = typeof(size) === "number" ? size : 1 }
+	set zIndex(value) { this.style._zIndex = value }
 }
 
 /** Generic class for Entities. */
@@ -533,10 +620,6 @@ class CText extends Shape {
 /** Class for user interaction. */
 class Interactive extends ComplexObject {
 
-	constructor(x, y, width, height, shapes) {
-		super(x, y, width, height, shapes);
-	}
-
 	/** Action when Interactive object is clicked. */
 	onClick = () => {}
 
@@ -546,11 +629,18 @@ class Interactive extends ComplexObject {
 	/** Action when mouse button up over the Interactive object. */
 	onMouseUp = () => {}
 
-	/** Action when hovering over the Interactive object. */
-	onMouseOver = () => {}
+	/** Action when enter the Interactive object. */
+	onMouseEnter = () => {}
 
-	/** Action when mouse out the Interactive object. */
-	onMouseOut = () => {}
+	/** Action when mouse leave the Interactive object. */
+	onMouseLeave = () => {}
 	
-	// onLoad = () => {}	
+	// onLoad = () => {}
+
+	isInside = (x, y) => {
+		if (x < this.offsetLeft() || y < this.offsetTop() || 
+			x > this.offsetRight() || y > this.offsetBottom() )	
+			return false;
+		return true;
+	}
 }
