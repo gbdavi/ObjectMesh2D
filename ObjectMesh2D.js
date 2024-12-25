@@ -28,7 +28,7 @@ class Canvas2D {
 		const lastEventsTarget = {};
 		["click", "mousedown", "mouseup", "mousemove"].map(eventName => 
 			this.canvas.addEventListener(eventName, (event) => {
-				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
+				Canvas2D.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
 			})
 		);
 	}
@@ -43,7 +43,7 @@ class Canvas2D {
 	set width(size) { this.canvas.width = size }
 	set height(size) { this.canvas.height = size }
 
-	/** Rewrite each element from elements. */
+	/** Rewrite each element from Canvas2D layers. */
 	refresh() {
 		this.clear();
 		for (const element of this.backLayer) {
@@ -67,14 +67,15 @@ class Canvas2D {
 		return document.createElement("Canvas").getContext("2d");
 	}
 
-	onEvent(event, targetElement, lastEventsTarget) {
+	/** Target element event handler. */
+	static onEvent(event, targetElement, lastEventsTarget) {
 		switch(event.type) {
 			case "click": {
 				if (!(targetElement instanceof Interactive))
 					return;
 
 				if (targetElement === lastEventsTarget.mouseDown)
-					targetElement.onClick();
+					targetElement?.onClick();
 				break;			
 			}
 			case "mousedown": {
@@ -82,14 +83,14 @@ class Canvas2D {
 					return;
 				
 				lastEventsTarget.mouseDown = targetElement;
-				targetElement.onMouseDown();
+				targetElement?.onMouseDown();
 				break;			
 			}
 			case "mouseup": {
 				if (!(targetElement instanceof Interactive))
 					return;
 				
-				targetElement.onMouseUp();
+				targetElement?.onMouseUp();
 				break;			
 			}
 			case "mousemove": {
@@ -101,11 +102,12 @@ class Canvas2D {
 				break;
 			}
 			default: {
-				console.log({type: event.type})
+				console.error({type: event.type}, "event not implemented!");
 			}
 		}
 	}
 
+	/** Update layers interactive elements. */
 	updateInteractiveElements() {
 		const flatElements = (element) => {
 			if (element instanceof ComplexObject) {
@@ -137,8 +139,13 @@ class Canvas2D {
 	}
 }
 
-/** Custom measure in pixels */
+/** Custom measure in pixels. */
 class Measure {
+	/**
+	 * Create a base measure passing measureValue as a number or create a relative measure passing measureValue as a Function (oldValue, newValue) and baseMeasure as a Measure.
+	 * @param {number | Function} measureValue 
+	 * @param {Measure} baseMeasure 
+	 */
 	constructor(measureValue, baseMeasure) {
 		this.measure = {  _onChangeFunctions: [], _dependentObjects: [] };
 
@@ -152,21 +159,25 @@ class Measure {
 		}
 	}
 
+	/** Add function to call when measure change it's value. */
 	addOnChangeFunction(onChangeFunction) {
 		if (onChangeFunction instanceof Function)
 			this.measure._onChangeFunctions.push(onChangeFunction);
 	}
 
+	/** Add Shapes and Entities to update it's styles relative to the parent when measure change it's value. */
 	addDependentObject(dependentObject) {
 		if (dependentObject instanceof Shape || dependentObject instanceof Entity)
 			if (!this.measure._dependentObjects.includes(dependentObject))
 				this.measure._dependentObjects.push(dependentObject);
 	}
 
+	/** Get measure value in pixels. */
 	valueOf() {
 		return this.measure._value;	
 	}
 	
+	/** Set measure value in pixels. */
 	set value(value) {
 		if (typeof(value) === "number") {
 			const oldValue = this.measure._value;
