@@ -631,18 +631,14 @@ class ComplexObject extends Rectangle {
 	 */
 	addShapes(shapes, reverse=false, unshift=false) {
 		if (reverse) shapes.reverse();
-		if (unshift) {
-			for (const shape of shapes) {
-				shape.parentElement = this;
-				Style.alignX(this.style._alignX, shape, this);
-				Style.alignY(this.style._alignY, shape, this);
+		for (const shape of shapes) {
+			shape.parentElement = this;
+			shape.move(0, 0, this.alignX ? 0 : this.x, this.alignY ? 0 : this.y);
+			Style.alignX(this.style._alignX, shape, this);
+			Style.alignY(this.style._alignY, shape, this);
+			if (unshift) {
 				this.shapes.unshift(shape);
-			}
-		} else {
-			for (const shape of shapes) {
-				shape.parentElement = this;
-				Style.alignX(this.style._alignX, shape, this);
-				Style.alignY(this.style._alignY, shape, this);
+			} else {
 				this.shapes.push(shape);
 			}
 		}
