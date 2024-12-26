@@ -1,10 +1,16 @@
 
 /** Helper class to manipulate the HTMLCanvasElement. */
 class Canvas2D {
+	/**
+	 * @param {string} canvasElementId 
+	 * @param {number} width 
+	 * @param {number} height 
+	 */
 	constructor(canvasElementId, width, height) {		
 		this.canvas = document.getElementById(canvasElementId);
 		this.canvas.width = width;
 		this.canvas.height = height;
+		/** @type {CanvasRenderingContext2D} */
 		this.context = this.canvas.getContext("2d");
 
 		/** Background elements */
@@ -28,7 +34,7 @@ class Canvas2D {
 		const lastEventsTarget = {};
 		["click", "mousedown", "mouseup", "mousemove"].map(eventName => 
 			this.canvas.addEventListener(eventName, (event) => {
-				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
+				Canvas2D.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
 			})
 		);
 	}
@@ -43,7 +49,7 @@ class Canvas2D {
 	set width(size) { this.canvas.width = size }
 	set height(size) { this.canvas.height = size }
 
-	/** Rewrite each element from elements. */
+	/** Rewrite each element from Canvas2D layers. */
 	refresh() {
 		this.clear();
 		for (const element of this.backLayer) {
@@ -62,19 +68,27 @@ class Canvas2D {
 		this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
 	}
 
-	/** Returns a blank context. */
+	/** 
+	 * Returns a blank context. 
+	 * @returns {CanvasRenderingContext2D}
+	 */
 	static getNewStandardContext() {
 		return document.createElement("Canvas").getContext("2d");
 	}
 
-	onEvent(event, targetElement, lastEventsTarget) {
+	/** 
+	 * Target element event handler. 
+	 * @param {Event} event
+	 * @param {Interactive} targetElement
+	 */
+	static onEvent(event, targetElement, lastEventsTarget) {
 		switch(event.type) {
 			case "click": {
 				if (!(targetElement instanceof Interactive))
 					return;
 
 				if (targetElement === lastEventsTarget.mouseDown)
-					targetElement.onClick();
+					targetElement?.onClick();
 				break;			
 			}
 			case "mousedown": {
@@ -82,14 +96,14 @@ class Canvas2D {
 					return;
 				
 				lastEventsTarget.mouseDown = targetElement;
-				targetElement.onMouseDown();
+				targetElement?.onMouseDown();
 				break;			
 			}
 			case "mouseup": {
 				if (!(targetElement instanceof Interactive))
 					return;
 				
-				targetElement.onMouseUp();
+				targetElement?.onMouseUp();
 				break;			
 			}
 			case "mousemove": {
@@ -101,11 +115,12 @@ class Canvas2D {
 				break;
 			}
 			default: {
-				console.log({type: event.type})
+				console.error({type: event.type}, "event not implemented!");
 			}
 		}
 	}
 
+	/** Update layers interactive elements. */
 	updateInteractiveElements() {
 		const flatElements = (element) => {
 			if (element instanceof ComplexObject) {
@@ -137,8 +152,13 @@ class Canvas2D {
 	}
 }
 
-/** Custom measure in pixels */
+/** Custom measure in pixels. */
 class Measure {
+	/**
+	 * Create a base measure passing measureValue as a number or create a relative measure passing measureValue as a Function (oldValue, newValue) and baseMeasure as a Measure.
+	 * @param {number | Function} measureValue 
+	 * @param {Measure} baseMeasure 
+	 */
 	constructor(measureValue, baseMeasure) {
 		this.measure = {  _onChangeFunctions: [], _dependentObjects: [] };
 
@@ -152,21 +172,29 @@ class Measure {
 		}
 	}
 
+	/** Add function to call when measure change it's value. */
 	addOnChangeFunction(onChangeFunction) {
 		if (onChangeFunction instanceof Function)
 			this.measure._onChangeFunctions.push(onChangeFunction);
 	}
 
+	/** Add Shapes and Entities to update it's styles relative to the parent when measure change it's value. */
 	addDependentObject(dependentObject) {
 		if (dependentObject instanceof Shape || dependentObject instanceof Entity)
 			if (!this.measure._dependentObjects.includes(dependentObject))
 				this.measure._dependentObjects.push(dependentObject);
 	}
 
+	/** Get measure value in pixels. 
+	 * @returns {number}
+	*/
 	valueOf() {
 		return this.measure._value;	
 	}
 	
+	/** Set measure value in pixels. 
+	 * @param {number} value 
+	*/
 	set value(value) {
 		if (typeof(value) === "number") {
 			const oldValue = this.measure._value;
@@ -175,7 +203,7 @@ class Measure {
 				func(oldValue, value);
 			const dependentObjectsParentElement = this.measure._dependentObjects.filter(object => object.parentElement).map(object => object.parentElement);
 			for (const parentElement of dependentObjectsParentElement)
-				parentElement.updateChilds();
+				parentElement.updateChildsRelativePosition();
 		} else {
 			console.error("Value must be a number!");
 		}
@@ -190,7 +218,11 @@ class Style {
 		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1, _zIndex: 1
 	};
 
-	/** Align a Shape with another element by X axis. */
+	/** Align a Shape with another element by X axis. 
+	 * @param {"left" | "center" | "right"} alignDirection 
+	 * @param {Shape | Entity} element 
+	 * @param {Shape | Entity | Canvas2D} container 
+	*/
 	static alignX(alignDirection, element, container) {
 		let cWidth;
 		let cX;
@@ -222,7 +254,11 @@ class Style {
         }
     }
 
-	/** Align a Shape with another element by Y axis. */
+	/** Align a Shape with another element by Y axis. 
+	 * @param {"top" | "center" | "bottom"} alignDirection 
+	 * @param {Shape | Entity} element 
+	 * @param {Shape | Entity | Canvas2D} container 
+	*/
 	static alignY(alignDirection, element, container) {
 		let cHeight;
 		let cY;
@@ -297,10 +333,21 @@ class Style {
 	set zIndex(value) { this.style._zIndex = value }
 }
 
-/** Generic class for Entities. */
+/** Generic class for Entities. 
+ * @abstract
+*/
 class Entity extends Style {
+	/** @private */
 	static idCount = 0;
 
+	/**
+	 * @protected
+	 * @param {number | Measure} measure Base Measure.
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 */
 	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY) {
 		super();
 		Entity.idCount++;
@@ -313,36 +360,74 @@ class Entity extends Style {
 		this.marginY = marginY;
 	}
 
+	/** 
+	 * @abstract 
+	 * @param {CanvasRenderingContext2D} context 
+	 */
 	create(context) {
 		console.error("%c" + this.constructor.name + " don't have a create method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
+	/**
+	 * @abstract
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 */
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
-	hasCollision(marginMeasureX, marginMeasureY) {
+	/** 
+	 * @abstract 
+	 * @param {number} positionX Position X in pixels.
+	 * @param {number} positionY Position Y in pixels.
+	 */
+	hasCollision(positionX, positionY) {
 		console.error("%c" + this.constructor.name + " don't have a hasCollision method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 }
 
-/** Generic class for Shapes. */
+/** Generic class for Shapes. 
+ * @abstract
+*/
 class Shape extends Style {
+	/** @private */
 	static idCount = 0;
 
+	/**
+	 * @protected
+	 * @param {number | Measure} measure Base Measure
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 * @param {number} width Width in pixels.
+	 * @param {number} height Height in pixels.
+	 * @param {string} bgColor Hexadecimal color string.
+	 */
 	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, bgColor) {
 		super();
 		Shape.idCount++;
 
 		this.id = Shape.idCount;
+		/** @type {Measure} */
 		this.measure = measure;
+		/** @type {number} */
 		this.marginMeasureX = marginMeasureX;
+		/** @type {number} */
 		this.marginMeasureY = marginMeasureY;
+		/** @type {number} */
 		this.marginX = marginX;
+		/** @type {number} */
 		this.marginY = marginY;
-
+		
+		/** @type {number} */
 		this.width = width;
+		/** @type {number} */
 		this.height = height;
+		/** @type {string} */
 		this.bgColor = bgColor;
 
 		for (const value of [...new Set([measure, width, height])]) {
@@ -351,7 +436,9 @@ class Shape extends Style {
 		}
 	}
 
-	/** Returns the absolute value of the width in pixels.  */
+	/** Absolute value of width in pixels.  
+	 * @returns {number}
+	*/
 	get width() {
 		if (this.style._width instanceof Measure) {
 			return this.style._width.valueOf();
@@ -359,7 +446,9 @@ class Shape extends Style {
 		return this.style._width;
 	}
 
-	/** Returns the absolute value of the height in pixels.  */
+	/** Absolute value of height in pixels.  
+	 * @returns {number}
+	*/
 	get height() {
 		if (this.style._height instanceof Measure) {
 			return this.style._height.valueOf();
@@ -370,10 +459,21 @@ class Shape extends Style {
 	set width(size) { this.style._width = size ?? 0 }
 	set height(size) { this.style._height = size ?? 0 }
 
+	/** Create the Shape in Canvas context. 
+	 * @abstract
+	 * @param {CanvasRenderingContext2D} context 
+	 */
 	create(context) {
 		console.error("%c" + this.constructor.name + " don't have a create method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 
+	/** Increment the Shape coordinates.
+	 * @abstract
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 */
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
@@ -401,12 +501,25 @@ class Shape extends Style {
 
 /** Shape class for Rectangles. */
 class Rectangle extends Shape {	
+	/**
+	 * @param {number | Measure} measure Base Measure
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 * @param {number} width Width in pixels.
+	 * @param {number} height Height in pixels.
+	 * @param {string} bgColor Hexadecimal bgColor string.
+	 * @param {*} round 
+	 */
 	constructor (measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, bgColor, round) {
 		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, bgColor);
 		this.round = round;
 	}
 	
-	/** Create the Rectangle in Canvas context. */
+	/** Create the Rectangle in Canvas context. 
+	 * @param {CanvasRenderingContext2D} context 
+	*/
 	create(context) {
 		if (!this.hidden) {
 			context.beginPath();
@@ -431,7 +544,7 @@ class Rectangle extends Shape {
 		this.marginY += marginY;
 	}
 
-	/** Set the border rounding for the Rectangle. */
+	/** Border rounding for the Rectangle. */
 	get round() { return this.style._round }
 	set round(round) { this.style._round = round ?? [0] }
 }
@@ -440,9 +553,21 @@ class Rectangle extends Shape {
  **  Note that Shapes will have their position relative to the ComplexObject position. */
 class ComplexObject extends Rectangle {
 
-	/** Groupped Shapes */
+	/** Groupped Shapes.
+	 * @type {Shape[]}
+	*/
 	shapes = [];
 
+	/**
+	 * @param {number | Measure} measure Base Measure
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 * @param {number} width Width in pixels.
+	 * @param {number} height Height in pixels.
+	 * @param {Shape[]} shapes Shape list.
+	 */
 	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, shapes) {
 		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, "transparent", 1);
 				
@@ -455,6 +580,7 @@ class ComplexObject extends Rectangle {
 	/** Show the ComplexObject display area.
 	 ** Note that the Shapes will be hidden.
 	 ** Use the bgColor method to change the display area color.
+	 * @type {boolean}
 	 */
 	get showDisplayArea() { return this.style._showDisplayArea }
 	set showDisplayArea(value) { this.style._showDisplayArea = value !== false ? true : false }
@@ -463,10 +589,20 @@ class ComplexObject extends Rectangle {
 	get alignX() { return this.style._alignX }
 	get alignY() { return this.style._alignY }
 
+	/**
+	 * Child shapes align direction.
+	 * @param {"left" | "center" | "right"} direction 
+	 */
 	set alignX(direction) { this.style._alignX = direction }
+	/**
+	 * Shapes align direction.
+	 * @param {"top" | "center" | "bottom"} direction 
+	 */
 	set alignY(direction) { this.style._alignY = direction }
 		
-	/** Create the ComplexObject Shapes in Canvas context. */
+	/** Create the ComplexObject Shapes in Canvas context. 
+	 * @type {CanvasRenderingContext2D}
+	*/
 	create(context) {
 		if (this.showDisplayArea) {
 			super.create(context);
@@ -488,7 +624,11 @@ class ComplexObject extends Rectangle {
 		}
 	}
 
-	/** Add a list of Shapes to the ComplexObject. */
+	/** Add a list of Shapes to the ComplexObject.
+	 * @param {Shape[]} shapes 
+	 * @param {boolean} reverse 
+	 * @param {boolean} unshift 
+	 */
 	addShapes(shapes, reverse=false, unshift=false) {
 		if (reverse) shapes.reverse();
 		if (unshift) {
@@ -508,7 +648,8 @@ class ComplexObject extends Rectangle {
 		}
 	}
 
-	updateChilds() {
+	/** Update shapes relative position. */
+	updateChildsRelativePosition() {
 		for (const shape of this.shapes) {
 			Style.alignX(this.style._alignX, shape, this);
 			Style.alignY(this.style._alignY, shape, this);
@@ -518,13 +659,25 @@ class ComplexObject extends Rectangle {
 
 /** Shape class for images. */
 class Img extends Shape {
+	/**
+	 * @param {string} imgSrc Image path.
+	 * @param {number | Measure} measure Base Measure
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 * @param {number} width Width in pixels.
+	 * @param {number} height Height in pixels.
+	 */
 	constructor(imgSrc, measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height) {
 		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, width, height, "");
 		this.img = new Image(width, height);
 		this.img.src = imgSrc;
 	}
 
-	/** Create the Img in Canvas context. */
+	/** Create the Img in Canvas context. 
+	 * @param {CanvasRenderingContext2D} context 
+	*/
 	create(context) {
 		if (!this.hidden) {
 			context.drawImage(this.img, this.x, this.y, this.width, this.height);
@@ -542,8 +695,23 @@ class Img extends Shape {
 
 /** Shape class for text. */
 class CText extends Shape {
-	constructor(measure, x, y, marginX, marginY, maxWidth, text, color, bgColor, fontSize, fontWeight, fontFamily) {
-		super(measure, x, y, marginX, marginY, maxWidth, undefined, bgColor);
+	/**
+	 * @param {number | Measure} measure Base Measure
+	 * @param {number} marginMeasureX Margin X in Measure.
+	 * @param {number} marginMeasureY Margin Y in Measure.
+	 * @param {number} marginX Margin X in pixels.
+	 * @param {number} marginY Margin Y in pixels.
+	 * @param {number} maxWidth Max width in pixels.
+	 * @param {string} text Text to display.
+	 * @param {string} color Hexadecimal color string.
+	 * @param {string} bgColor Hexadecimal bgColor string.
+	 * @param {number} fontSize Text font size.
+	 * @param {string} fontWeight Text font weight.
+	 * @param {string} fontFamily Text font family.
+	 * 
+	 */
+	constructor(measure, marginMeasureX, marginMeasureY, marginX, marginY, maxWidth, text, color, bgColor, fontSize, fontWeight, fontFamily) {
+		super(measure, marginMeasureX, marginMeasureY, marginX, marginY, maxWidth, undefined, bgColor);
 		this.text = text ?? "";
 		this.fontSize = fontSize;
 
@@ -551,7 +719,7 @@ class CText extends Shape {
 		this.fontWeight = fontWeight;
 		this.fontFamily = fontFamily;
 		
-		this.bg = new Rectangle(measure, x, y, marginX, marginY, this.width, this.height, this.bgColor);
+		this.bg = new Rectangle(measure, marginMeasureX, marginMeasureY, marginX, marginY, this.width, this.height, this.bgColor);
 		this.yCorrection(0, this.fontSize);
 	}
 
@@ -581,7 +749,9 @@ class CText extends Shape {
 	set fontWeight(fontWeight) { this.style._fontWeight = fontWeight ?? "normal" }
 	set fontFamily(family) { this.style._fontFamily = family ?? "sans-serif" }	
 
-	/** Create the CText in Canvas context. */
+	/** Create the CText in Canvas context. 
+	 * @param {CanvasRenderingContext2D} context 
+	*/
 	create(context) {
 		this.bg.create(context);
 		context.font = this.style._fontWeight + " " + this.style._fontSize + "px " + this.style._fontFamily;
@@ -599,7 +769,10 @@ class CText extends Shape {
 		this.bg.move(marginMeasureX, marginMeasureY, marginX, marginY);
 	}
 
-	/** Recalculate values when font size change. */
+	/** Recalculate values when font size change. 
+	 * @param {number} currentFontSize 
+	 * @param {number} newFontSize 
+	*/
 	yCorrection(currentFontSize, newFontSize) {
 		const currentTotalLines = this.style._width ? Math.ceil((this.text.length*currentFontSize) / this.width) : 1;
 		const newTotalLines = this.style._width ? Math.ceil((this.text.length*newFontSize) / this.height) : 1;
@@ -635,11 +808,14 @@ class Interactive extends ComplexObject {
 	/** Action when mouse leave the Interactive object. */
 	onMouseLeave = () => {}
 	
-	// onLoad = () => {}
-
-	isInside = (x, y) => {
-		if (x < this.offsetLeft() || y < this.offsetTop() || 
-			x > this.offsetRight() || y > this.offsetBottom() )	
+	/** 
+	 * @abstract 
+	 * @param {number} positionX Coordinate X.
+	 * @param {number} positionY Coordinate Y.
+	 */
+	isInside(positionX, positionY) {
+		if (positionX < this.offsetLeft() || positionY < this.offsetTop() || 
+			positionX > this.offsetRight() || positionY > this.offsetBottom() )	
 			return false;
 		return true;
 	}
