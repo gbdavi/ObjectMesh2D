@@ -13,6 +13,16 @@ class Canvas2D {
 		/** @type {CanvasRenderingContext2D} */
 		this.context = this.canvas.getContext("2d");
 
+		this._lastEventsTarget = {};
+		this._eventFunctions = {
+			click: {}, 
+			mouseMove: {},
+			mouseDown: {},
+			mouseUp: {},
+			mouseEnter: {},
+			mouseLeave: {}
+		};
+
 		/** Background elements */
 		this.backLayer = [];
 		this._backLayerInteractive = [];
@@ -31,10 +41,9 @@ class Canvas2D {
 				?? this._backLayerInteractive.findLast((element) => element?.isInside(x, y));
 		}
 
-		const lastEventsTarget = {};
 		["click", "mousedown", "mouseup", "mousemove"].map(eventName => 
 			this.canvas.addEventListener(eventName, (event) => {
-				Canvas2D.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
+				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY));
 			})
 		);
 	}
@@ -79,38 +88,42 @@ class Canvas2D {
 	/** 
 	 * Target element event handler. 
 	 * @param {Event} event
-	 * @param {Interactive} targetElement
+	 * @param {Interactive | undefined} targetElement
 	 */
-	static onEvent(event, targetElement, lastEventsTarget) {
+	onEvent(event, targetElement) {
+		const callEventFunctions = (eventName, target) => Object.values(this._eventFunctions[eventName]).forEach(func => func(event, target));
+		
 		switch(event.type) {
 			case "click": {
-				if (!(targetElement instanceof Interactive))
-					return;
-
-				if (targetElement === lastEventsTarget.mouseDown)
-					targetElement?.onClick();
+				callEventFunctions("click", targetElement);
+				if (targetElement && targetElement === this._lastEventsTarget.mouseDown) {
+					targetElement?.onClick(event);
+				}
 				break;			
 			}
 			case "mousedown": {
-				if (!(targetElement instanceof Interactive))
-					return;
-				
-				lastEventsTarget.mouseDown = targetElement;
-				targetElement?.onMouseDown();
+				callEventFunctions("mouseDown",  targetElement);
+				if (targetElement) {
+					this._lastEventsTarget.mouseDown = targetElement;
+					targetElement?.onMouseDown(event);
+				}
 				break;			
 			}
 			case "mouseup": {
-				if (!(targetElement instanceof Interactive))
-					return;
-				
-				targetElement?.onMouseUp();
+				callEventFunctions("mouseUp", targetElement);
+				if (targetElement) {
+					targetElement?.onMouseUp(event);
+				}
 				break;			
 			}
 			case "mousemove": {
-				if (lastEventsTarget.mouseEnter !== targetElement) {
-					lastEventsTarget.mouseEnter?.onMouseLeave();
-					lastEventsTarget.mouseEnter = targetElement;
-					targetElement?.onMouseEnter();
+				callEventFunctions("mouseMove", targetElement);
+				if (this._lastEventsTarget.mouseEnter !== targetElement) {
+					callEventFunctions("mouseLeave", this._lastEventsTarget.mouseEnter);
+					this._lastEventsTarget.mouseEnter?.onMouseLeave(event);
+					this._lastEventsTarget.mouseEnter = targetElement;
+					callEventFunctions("mouseEnter", targetElement);
+					targetElement?.onMouseEnter(event);
 				}
 				break;
 			}
@@ -149,6 +162,35 @@ class Canvas2D {
 				this._frontLayerInteractive.push(element);
 			}
 		}
+	}
+
+	/** Subscribe a function to call when an event occur. 
+	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave"} event
+	 * @param {Function} func
+	*/
+	subscribeEventFunction(event, func) {
+		if (!this._eventFunctions[event] || !func instanceof Function)
+			return false;
+
+		let functionId;
+		do {
+			functionId = Math.random().toString(16).slice(2);
+		} while (this._eventFunctions[functionId])
+
+		this._eventFunctions[event][functionId] = func;
+		return functionId;
+	}
+
+	/** Unsubscribe an event function. 
+	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave"} event
+	 * @param {string} functionId
+	*/
+	unsubscribeEventFunction(event, functionId) {
+		if (!this._eventFunctions[event]?.[functionId])
+			return false;
+
+		delete this._eventFunctions[event][functionId];
+		return true;
 	}
 }
 
@@ -816,19 +858,19 @@ class CText extends Shape {
 class Interactive extends ComplexObject {
 
 	/** Action when Interactive object is clicked. */
-	onClick = () => {}
+	onClick = (event) => {}
 
 	/** Action when mouse button down over the Interactive object. */
-	onMouseDown = () => {}
+	onMouseDown = (event) => {}
 
 	/** Action when mouse button up over the Interactive object. */
-	onMouseUp = () => {}
+	onMouseUp = (event) => {}
 
 	/** Action when enter the Interactive object. */
-	onMouseEnter = () => {}
+	onMouseEnter = (event) => {}
 
 	/** Action when mouse leave the Interactive object. */
-	onMouseLeave = () => {}
+	onMouseLeave = (event) => {}
 	
 	/** 
 	 * @abstract 
