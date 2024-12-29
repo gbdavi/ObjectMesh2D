@@ -20,7 +20,8 @@ class Canvas2D {
 			mouseDown: {},
 			mouseUp: {},
 			mouseEnter: {},
-			mouseLeave: {}
+			mouseLeave: {},
+			drag: {}
 		};
 
 		/** Background elements */
@@ -111,6 +112,7 @@ class Canvas2D {
 			}
 			case "mouseup": {
 				callEventFunctions("mouseUp", targetElement);
+				this._lastEventsTarget.mouseDown = undefined;
 				if (targetElement) {
 					targetElement?.onMouseUp(event);
 				}
@@ -121,9 +123,15 @@ class Canvas2D {
 				if (this._lastEventsTarget.mouseEnter !== targetElement) {
 					callEventFunctions("mouseLeave", this._lastEventsTarget.mouseEnter);
 					this._lastEventsTarget.mouseEnter?.onMouseLeave(event);
+
 					this._lastEventsTarget.mouseEnter = targetElement;
 					callEventFunctions("mouseEnter", targetElement);
 					targetElement?.onMouseEnter(event);
+
+				}
+				if (this._lastEventsTarget.mouseDown) {
+					callEventFunctions("drag", targetElement);
+					this._lastEventsTarget.mouseDown?.onDrag(event);
 				}
 				break;
 			}
@@ -165,7 +173,7 @@ class Canvas2D {
 	}
 
 	/** Subscribe a function to call when an event occur. 
-	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave"} event
+	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave" | "drag"} event
 	 * @param {Function} func
 	*/
 	subscribeEventFunction(event, func) {
@@ -182,7 +190,7 @@ class Canvas2D {
 	}
 
 	/** Unsubscribe an event function. 
-	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave"} event
+	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave" | "drag"} event
 	 * @param {string} functionId
 	*/
 	unsubscribeEventFunction(event, functionId) {
@@ -871,6 +879,9 @@ class Interactive extends ComplexObject {
 
 	/** Action when mouse leave the Interactive object. */
 	onMouseLeave = (event) => {}
+
+	/** Action when mouse drag the Interactive object. */
+	onDrag = (event) => {}
 	
 	/** 
 	 * @abstract 
