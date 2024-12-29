@@ -13,6 +13,17 @@ class Canvas2D {
 		/** @type {CanvasRenderingContext2D} */
 		this.context = this.canvas.getContext("2d");
 
+		this._lastEventsTarget = {};
+		this._eventFunctions = {
+			click: {}, 
+			mouseMove: {},
+			mouseDown: {},
+			mouseUp: {},
+			mouseEnter: {},
+			mouseLeave: {},
+			drag: {}
+		};
+
 		/** Background elements */
 		this.backLayer = [];
 		this._backLayerInteractive = [];
@@ -31,10 +42,9 @@ class Canvas2D {
 				?? this._backLayerInteractive.findLast((element) => element?.isInside(x, y));
 		}
 
-		const lastEventsTarget = {};
 		["click", "mousedown", "mouseup", "mousemove"].map(eventName => 
 			this.canvas.addEventListener(eventName, (event) => {
-				Canvas2D.onEvent(event, getTargetElement(event.offsetX, event.offsetY), lastEventsTarget);
+				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY));
 			})
 		);
 	}
@@ -79,38 +89,49 @@ class Canvas2D {
 	/** 
 	 * Target element event handler. 
 	 * @param {Event} event
-	 * @param {Interactive} targetElement
+	 * @param {Interactive | undefined} targetElement
 	 */
-	static onEvent(event, targetElement, lastEventsTarget) {
+	onEvent(event, targetElement) {
+		const callEventFunctions = (eventName, target) => Object.values(this._eventFunctions[eventName]).forEach(func => func(event, target));
+		
 		switch(event.type) {
 			case "click": {
-				if (!(targetElement instanceof Interactive))
-					return;
-
-				if (targetElement === lastEventsTarget.mouseDown)
-					targetElement?.onClick();
+				callEventFunctions("click", targetElement);
+				if (targetElement && targetElement === this._lastEventsTarget.mouseDown) {
+					targetElement?.onClick(event);
+				}
 				break;			
 			}
 			case "mousedown": {
-				if (!(targetElement instanceof Interactive))
-					return;
-				
-				lastEventsTarget.mouseDown = targetElement;
-				targetElement?.onMouseDown();
+				callEventFunctions("mouseDown",  targetElement);
+				if (targetElement) {
+					this._lastEventsTarget.mouseDown = targetElement;
+					targetElement?.onMouseDown(event);
+				}
 				break;			
 			}
 			case "mouseup": {
-				if (!(targetElement instanceof Interactive))
-					return;
-				
-				targetElement?.onMouseUp();
+				callEventFunctions("mouseUp", targetElement);
+				this._lastEventsTarget.mouseDown = undefined;
+				if (targetElement) {
+					targetElement?.onMouseUp(event);
+				}
 				break;			
 			}
 			case "mousemove": {
-				if (lastEventsTarget.mouseEnter !== targetElement) {
-					lastEventsTarget.mouseEnter?.onMouseLeave();
-					lastEventsTarget.mouseEnter = targetElement;
-					targetElement?.onMouseEnter();
+				callEventFunctions("mouseMove", targetElement);
+				if (this._lastEventsTarget.mouseEnter !== targetElement) {
+					callEventFunctions("mouseLeave", this._lastEventsTarget.mouseEnter);
+					this._lastEventsTarget.mouseEnter?.onMouseLeave(event);
+
+					this._lastEventsTarget.mouseEnter = targetElement;
+					callEventFunctions("mouseEnter", targetElement);
+					targetElement?.onMouseEnter(event);
+
+				}
+				if (this._lastEventsTarget.mouseDown) {
+					callEventFunctions("drag", targetElement);
+					this._lastEventsTarget.mouseDown?.onDrag(event);
 				}
 				break;
 			}
@@ -149,6 +170,35 @@ class Canvas2D {
 				this._frontLayerInteractive.push(element);
 			}
 		}
+	}
+
+	/** Subscribe a function to call when an event occur. 
+	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave" | "drag"} event
+	 * @param {Function} func
+	*/
+	subscribeEventFunction(event, func) {
+		if (!this._eventFunctions[event] || !func instanceof Function)
+			return false;
+
+		let functionId;
+		do {
+			functionId = Math.random().toString(16).slice(2);
+		} while (this._eventFunctions[functionId])
+
+		this._eventFunctions[event][functionId] = func;
+		return functionId;
+	}
+
+	/** Unsubscribe an event function. 
+	 * @param {"click" | "mouseMove" | "mouseDown" | "mouseUp" | "mouseEnter" | "mouseLeave" | "drag"} event
+	 * @param {string} functionId
+	*/
+	unsubscribeEventFunction(event, functionId) {
+		if (!this._eventFunctions[event]?.[functionId])
+			return false;
+
+		delete this._eventFunctions[event][functionId];
+		return true;
 	}
 }
 
@@ -214,6 +264,7 @@ class Measure {
 class Style {
 	_parentElement;
 	style = {
+		_relativeOffsetX: 0, _relativeOffsetY: 0,
 		_measure: new Measure(1), _marginMeasureX: 0, _marginMeasureY: 0, _marginX: 0, _marginY: 0,
 		_fill: true, _hidden: false, _bgColor: "transparent", _lineWidth: 1, _zIndex: 1
 	};
@@ -243,13 +294,13 @@ class Style {
 
         switch (alignDirection) {
 			case "left":
-				element.move(0, 0, (cX-element.x), 0);
+				element.relativeOffsetX = cX;
 				break;
             case "center":		
-				element.move(0, 0, ((cWidth - element.width)/2) - (element.x - cX), 0);				
+				element.relativeOffsetX = cX + ((cWidth - element.width)/2);
                 break;
 			case "right":
-				element.move(0, 0, (cWidth - element.width) + (cX - element.x), 0);
+				element.relativeOffsetX = cX + cWidth - element.width;
 				break;
         }
     }
@@ -284,17 +335,21 @@ class Style {
 		
         switch (alignDirection) {
 			case "top":
-				element.move(0, 0, 0, (cY-element.y) + biasY);
+				element.relativeOffsetY = cY + biasY;
 				break;
 			case "center":
-				element.move(0, 0, 0, ((cHeight - element.height)/2) - (element.y - cY) + biasY);
+				element.relativeOffsetY = cY + ((cHeight - element.height)/2) + biasY;
 				break;
 			case "bottom":
-				element.move(0, 0, 0, (cHeight - element.height) + (cY - element.y) + biasY);
+				element.relativeOffsetY = cY + cHeight - element.height + biasY;
 				break;
         }
     }
 	
+	/** Relative offset X to it's parent. */
+	get relativeOffsetX() { return this.style._relativeOffsetX }
+	/** Relative offset Y to it's parent. */
+	get relativeOffsetY() { return this.style._relativeOffsetY }
 	/** Custom measure in pixels. */
 	get measure() { return this.style._measure }
 	/** Margin X in measure. */
@@ -306,9 +361,9 @@ class Style {
 	/** Margin Y in pixel. */ 
 	get marginY() { return this.style._marginY }
 	/** Coordinate X in pixels */
-	get x() { return (this.marginMeasureX * this.measure) + this.marginX }
+	get x() { return this.relativeOffsetX + (this.marginMeasureX * this.measure) + this.marginX }
 	/** Coordinate Y in pixels */
-	get y() { return (this.marginMeasureY * this.measure) + this.marginY }
+	get y() { return this.relativeOffsetY + (this.marginMeasureY * this.measure) + this.marginY }
 
 	get parentElement() { return this._parentElement }
 	get fill() { return this.style._fill }
@@ -317,6 +372,8 @@ class Style {
 	get lineWidth() { return this.style._lineWidth }
 	get zIndex() { return this.style._zIndex ?? 1 }
 
+	set relativeOffsetX(position) { this.style._relativeOffsetX = typeof(position) === "number" ? position : this.style._relativeOffsetX }
+	set relativeOffsetY(position) { this.style._relativeOffsetY = typeof(position) === "number" ? position : this.style._relativeOffsetY }
 	set measure(measure) { this.style._measure = measure instanceof Measure || typeof(measure) === "number" ? measure : this.style._measure }
 	set marginMeasureX(measurePosition) { this.style._marginMeasureX = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureX }
 	set marginMeasureY(measurePosition) { this.style._marginMeasureY = typeof(measurePosition) === "number" ? measurePosition : this.style._marginMeasureY }
@@ -585,7 +642,6 @@ class ComplexObject extends Rectangle {
 	get showDisplayArea() { return this.style._showDisplayArea }
 	set showDisplayArea(value) { this.style._showDisplayArea = value !== false ? true : false }
 
-
 	get alignX() { return this.style._alignX }
 	get alignY() { return this.style._alignY }
 
@@ -631,18 +687,15 @@ class ComplexObject extends Rectangle {
 	 */
 	addShapes(shapes, reverse=false, unshift=false) {
 		if (reverse) shapes.reverse();
-		if (unshift) {
-			for (const shape of shapes) {
-				shape.parentElement = this;
-				Style.alignX(this.style._alignX, shape, this);
-				Style.alignY(this.style._alignY, shape, this);
+		for (const shape of shapes) {
+			shape.parentElement = this;
+			shape.relativeOffsetX = this.x;
+			shape.relativeOffsetY = this.y;
+			Style.alignX(this.style._alignX, shape, this);
+			Style.alignY(this.style._alignY, shape, this);
+			if (unshift) {
 				this.shapes.unshift(shape);
-			}
-		} else {
-			for (const shape of shapes) {
-				shape.parentElement = this;
-				Style.alignX(this.style._alignX, shape, this);
-				Style.alignY(this.style._alignY, shape, this);
+			} else {
 				this.shapes.push(shape);
 			}
 		}
@@ -654,6 +707,24 @@ class ComplexObject extends Rectangle {
 			Style.alignX(this.style._alignX, shape, this);
 			Style.alignY(this.style._alignY, shape, this);
 		}
+	}
+
+	get relativeOffsetX() { return super.relativeOffsetX }
+	get relativeOffsetY() { return super.relativeOffsetY }
+
+	set relativeOffsetX(position) {
+		const deltaOffsetX = position - this.relativeOffsetX;
+		for (const shape of this.shapes) {
+			shape.relativeOffsetX += deltaOffsetX;
+		}
+		super.relativeOffsetX = position;
+	}
+	set relativeOffsetY(position) {
+		const deltaOffsetY = position - this.relativeOffsetY;
+		for (const shape of this.shapes) {
+			shape.relativeOffsetY += deltaOffsetY;
+		}
+		super.relativeOffsetY = position;
 	}
 }
 
@@ -770,8 +841,9 @@ class CText extends Shape {
 	}
 
 	/** Recalculate values when font size change. 
-	 * @param {number} currentFontSize 
-	 * @param {number} newFontSize 
+	 * @private
+	 * @param {number} currentFontSize
+	 * @param {number} newFontSize
 	*/
 	yCorrection(currentFontSize, newFontSize) {
 		const currentTotalLines = this.style._width ? Math.ceil((this.text.length*currentFontSize) / this.width) : 1;
@@ -794,19 +866,22 @@ class CText extends Shape {
 class Interactive extends ComplexObject {
 
 	/** Action when Interactive object is clicked. */
-	onClick = () => {}
+	onClick = (event) => {}
 
 	/** Action when mouse button down over the Interactive object. */
-	onMouseDown = () => {}
+	onMouseDown = (event) => {}
 
 	/** Action when mouse button up over the Interactive object. */
-	onMouseUp = () => {}
+	onMouseUp = (event) => {}
 
 	/** Action when enter the Interactive object. */
-	onMouseEnter = () => {}
+	onMouseEnter = (event) => {}
 
 	/** Action when mouse leave the Interactive object. */
-	onMouseLeave = () => {}
+	onMouseLeave = (event) => {}
+
+	/** Action when mouse drag the Interactive object. */
+	onDrag = (event) => {}
 	
 	/** 
 	 * @abstract 
