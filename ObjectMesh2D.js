@@ -47,6 +47,7 @@ class Canvas2D {
 				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY));
 			})
 		);
+		document.addEventListener("mouseup", (event) => { this._lastEventsTarget.drag = undefined });
 	}
 
 	get x() { return this.canvas.style.left }
@@ -106,13 +107,14 @@ class Canvas2D {
 				callEventFunctions("mouseDown",  targetElement);
 				if (targetElement) {
 					this._lastEventsTarget.mouseDown = targetElement;
+					this._lastEventsTarget.drag = targetElement;
 					targetElement?.onMouseDown(event);
 				}
 				break;			
 			}
 			case "mouseup": {
 				callEventFunctions("mouseUp", targetElement);
-				this._lastEventsTarget.mouseDown = undefined;
+				this._lastEventsTarget.drag = undefined;
 				if (targetElement) {
 					targetElement?.onMouseUp(event);
 				}
@@ -129,9 +131,9 @@ class Canvas2D {
 					targetElement?.onMouseEnter(event);
 
 				}
-				if (this._lastEventsTarget.mouseDown) {
+				if (this._lastEventsTarget.drag) {
 					callEventFunctions("drag", targetElement);
-					this._lastEventsTarget.mouseDown?.onDrag(event);
+					this._lastEventsTarget.drag?.onDrag(event);
 				}
 				break;
 			}
