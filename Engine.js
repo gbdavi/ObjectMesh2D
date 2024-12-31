@@ -55,8 +55,8 @@ class RoutineManager {
 
     /**
      * Create new routine. 
-     * @param {string} name 
-     * @param {Function} routineFunction
+     * @param {string} name Routine name.
+     * @param {Function} routineFunction 
      * @param {number} interval
      * @param {number} executionOrder
      * @param {boolean} isEnabled
@@ -66,6 +66,7 @@ class RoutineManager {
             return false;
 
         const routine = {
+            name,
             routineFunction,
             interval,
             executionOrder: executionOrder ?? 1,
@@ -81,13 +82,37 @@ class RoutineManager {
 
     /**
      * Enable/disable routine.
+     * @param {string} name Routine name.
      * @param {boolean} state 
      */
-    setRoutineState(routine, state) {
-        if (!this._routines[routine])
+    setRoutineState(name, state) {
+        if (!this._routines[name])
             return false;
 
-        this._routines[routine].isEnabled = state;
+        this._routines[name].isEnabled = state;
+        return true;
+    }
+    
+    /**
+     * Enable/disable routine.
+     * @param {string} name Routine name.
+     * @param {number} interval
+     */
+    setRoutineInterval(name, interval) {
+        const routine = this._routines[name];
+        if (!routine)
+            return false;
+
+        const oldExecutionGroup = this._intervalExecutions[routine.interval];
+        const executionRoutineIndex = oldExecutionGroup.routines.findIndex(routine => routine.name === name);
+        oldExecutionGroup.routines.splice(executionRoutineIndex, 1);
+
+        const newExecutionGroup = this._intervalExecutions[interval];
+        newExecutionGroup.routines.push(routine);
+        newExecutionGroup.routines.sort((a, b) => a.executionOrder - b.executionOrder);
+
+        routine.interval = interval;
+
         return true;
     }
 
@@ -116,5 +141,37 @@ class RoutineManager {
             }
         }
     }
+}
 
+/** Core engine. */
+class Engine {
+    _routines = new RoutineManager();
+    _config = new StateManager();
+    _metadata = {};
+    /**
+     * 
+     * @param {Canvas2D} canvas
+     */
+    constructor(canvas, config) {
+        /** @type {Canvas2D} */
+        this._canvas = canvas;
+
+        this._routines.createRoutine("frameUpdate", () => { this._canvas.refresh() }, 1000/(config?.framerate ?? 30), 10000, config?.framerate !== 0);
+        this._config.createState("framerate", (_, newValue) => {
+            this._routines.setRoutineInterval("frameUpdate", 1000/newValue);
+            this._routines.setRoutineState("frameUpdate", newValue !== 0);
+            console.log(`Framerate changed from ${_} to ${newValue}`)
+        }, config?.framerate ?? 30);
+
+        this._routines.startRoutines();
+    }
+
+    /**
+     * Set config value.
+     * @param {string} config
+     * @param {*} value
+     */
+    setConfig(config, value) {
+        return this._config.setState(config, value);
+    }
 }
