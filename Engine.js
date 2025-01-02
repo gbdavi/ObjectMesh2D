@@ -149,7 +149,6 @@ class Engine {
     _config = new StateManager();
     _metadata = {};
     /**
-     * 
      * @param {Canvas2D} canvas
      */
     constructor(canvas, config) {
@@ -173,5 +172,116 @@ class Engine {
      */
     setConfig(config, value) {
         return this._config.setState(config, value);
+    }
+}
+
+
+class AudioManager {
+    audioLibrary = {};
+    /** @type {{[id: number]: {id: number, audioElement: HTMLAudioElement}}} */
+    _audioInstances = {};
+    _idGenerator = (function* () { for (let id = 1; true; id++) yield id })();
+    
+    /**
+     * Provide audio to library.
+     * @param {string} name Audio name in library.
+     * @param {string} src Media address or URL.
+     */
+    provideAudio(name, src) {
+        if (name && src) {
+            this.audioLibrary[name] = src;
+        }
+    }
+
+    /**
+     * Create audio instance.
+     * @param {string} audioName 
+     * @param {keyof HTMLAudioElement} attributes
+     */
+    createInstance(audioName, attributes) {
+        if (!this.audioLibrary[audioName])
+            return false;
+
+        const id = this._idGenerator.next().value;
+        const audioElement = document.createElement("audio");
+        audioElement.src = this.audioLibrary[audioName];
+        audioElement.preload = "auto";
+        this._audioInstances[id] = {
+            id,
+            audioElement
+        };
+        this.setInstanceAttributes(id, attributes);
+        return id;
+    }
+
+    /**
+     * Delete audio instance.
+     * @param {number} instanceId
+     */
+    deleteInstance(instanceId) {
+        if (!this._audioInstances[instanceId])
+            return false;
+
+        this.stopInstance(instanceId);
+        delete this._audioInstances[instanceId];
+        return true;
+    }
+
+    /**
+     * Set instance attributes value.
+     * @param {number} instanceId 
+     * @param {keyof HTMLAudioElement} attributes
+     */
+    setInstanceAttributes(instanceId, attributes) {
+        if (!this._audioInstances[instanceId])
+            return false;
+
+        const { audioElement } = this._audioInstances[instanceId];
+        for (const attribute in attributes) {
+            audioElement[attribute] = attributes[attribute];
+        }
+        return true;
+    }
+
+    /**
+     * @param {number} instanceId
+     */
+    playInstance(instanceId) {
+        return this._audioInstances[instanceId]?.audioElement.play();
+    }
+    
+    /**
+     * @param {number} instanceId
+     */
+    pauseInstance(instanceId) {
+        this._audioInstances[instanceId]?.audioElement.pause();
+    }
+
+    /**
+     * @param {number} instanceId
+     */
+    resetInstance(instanceId) {
+        if (this._audioInstances[instanceId]) {
+            this._audioInstances[instanceId].audioElement.currentTime = 0;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param {number} instanceId
+     */
+    stopInstance(instanceId) {
+        this.pauseInstance(instanceId);
+        this.resetInstance(instanceId);
+    }
+
+    /**
+     * Stop all instances.
+     */
+    stopAll() {
+        for (const instanceId in this._audioInstances) {
+            this.stopInstance(instanceId);
+        }
     }
 }
