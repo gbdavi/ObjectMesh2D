@@ -399,6 +399,12 @@ class Entity extends Style {
 	/** @private */
 	static idCount = 0;
 
+	/** 
+	 * Actor for physics if necessary.
+	 * @type {PhysicsActor?}
+	 */
+	physicsActor;
+
 	/**
 	 * @protected
 	 * @param {number | Measure} measure Base Measure.
@@ -439,12 +445,13 @@ class Entity extends Style {
 	}
 
 	/** 
+	 * Checks if the shape is at the specified position.
 	 * @abstract 
 	 * @param {number} positionX Position X in pixels.
 	 * @param {number} positionY Position Y in pixels.
 	 */
-	hasCollision(positionX, positionY) {
-		console.error("%c" + this.constructor.name + " don't have a hasCollision method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+	isAt(positionX, positionY) {
+		console.error("%c" + this.constructor.name + " don't have a isIn method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 }
 
@@ -454,6 +461,12 @@ class Entity extends Style {
 class Shape extends Style {
 	/** @private */
 	static idCount = 0;
+
+	/** 
+	 * Actor for physics if necessary.
+	 * @type {PhysicsActor?}
+	 */
+	physicsActor;
 
 	/**
 	 * @protected
@@ -535,6 +548,16 @@ class Shape extends Style {
 	 */
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+	}
+
+	/** 
+	 * Checks if the shape is at the specified position.
+	 * @param {number} positionX Position X in pixels.
+	 * @param {number} positionY Position Y in pixels.
+	 */
+	isAt(positionX, positionY) {
+		return positionX >= this.offsetLeft() && positionX < this.offsetRight() 
+			&& positionY >= this.offsetTop() && positionY < this.offsetBottom();
 	}
 
 	/** Returns the coordinate (y) of the top border of Shape. */

@@ -175,7 +175,6 @@ class Engine {
     }
 }
 
-
 class AudioManager {
     audioLibrary = {};
     /** @type {{[id: number]: {id: number, audioElement: HTMLAudioElement}}} */
@@ -284,4 +283,115 @@ class AudioManager {
             this.stopInstance(instanceId);
         }
     }
+}
+
+class PhysicsController {
+
+	/** @type {PhysicsActor[]} */
+	_actors = [];
+	
+	/**
+	 * 
+	 * @param {PhysicsActor} actor 
+	 */
+	addActor(actor) {
+		if (!this._actors.includes(actor)) {
+			this._actors.push(actor);
+			return true;
+		}
+		return false;
+	}
+}
+
+class PhysicsActor {
+
+	_targetElement;
+	_physicsController;
+
+	/**
+	 * 
+	 * @param {Entity | Shape} targetElement
+	 * @param {PhysicsController} physicsController
+	 */
+	constructor(targetElement, physicsController) {
+		if (targetElement.physicsActor) {
+			throw Error("The target element is already attached!");
+		}
+
+		this._targetElement = targetElement;
+		targetElement.physicsActor = this;
+
+		this._physicsController = physicsController;
+		physicsController.addActor(this);
+	}
+	
+	flags = {
+		hasCollision: true
+	}
+	
+	/**
+	 * Acceleration X in pixels per second.
+	 * @type {(number | Measure)[]}
+	 */
+	accelerationXAgents = [];
+	/**
+	 * Acceleration Y in pixels per second.
+	 * @type {(number | Measure)[]}
+	 */
+	accelerationYAgents = [];
+	/** Resultant acceleration X in pixels per second. */
+	get accelerationX() {
+        let total = 0; 
+        for (const agent of this.accelerationXAgents) 
+            total += agent; 
+        return total;
+    }
+	/** Resultant acceleration Y in pixels per second. */
+	get accelerationY() {
+        let total = 0; 
+        for (const agent of this.accelerationYAgents) 
+            total += agent; 
+        return total;
+    }
+
+	/**
+	 * Velocity X in pixels per second.
+	 * @type {number}
+	 */
+	velocityX = 0;
+	/**
+	 * Velocity Y in pixels per second.
+	 * @type {number}
+	 */
+	velocityY = 0;
+	
+	/**
+	 * Terminal velocity in pixels per second.
+	 * @type {number}
+	 */
+	terminalVelocity = Number.POSITIVE_INFINITY;
+
+	/**
+	 * Step physics time in seconds.
+	 * @param {number} timeStep 
+	 */
+	step(timeStep) {
+		const accelerationStepX = this.accelerationX * timeStep;
+		if (Math.abs(this.velocityX + accelerationStepX) < this.terminalVelocity) {
+			this.velocityX += accelerationStepX;
+		} else {
+			this.velocityX = accelerationStepX > 0 ? this.terminalVelocity : -this.terminalVelocity;
+		}
+
+		const accelerationStepY = this.accelerationY * timeStep;
+		if (Math.abs(this.velocityY + accelerationStepY) < this.terminalVelocity) {
+			this.velocityY += accelerationStepY;
+		} else {
+			this.velocityY = accelerationStepY > 0 ? this.terminalVelocity : -this.terminalVelocity;
+		}
+
+		const deltaPosX = this.velocityX * timeStep;
+		const deltaPosY = this.velocityY * timeStep;
+		this._targetElement.move(0, 0, deltaPosX, deltaPosY);
+	}
 }
