@@ -148,21 +148,24 @@ class Engine {
     _routines = new RoutineManager();
     _config = new StateManager();
     _metadata = {};
+    
     /**
      * @param {Canvas2D} canvas
+     * @param {PhysicsController} physicsController
      */
-    constructor(canvas, config) {
+    constructor(config, canvas, physicsController) {
         /** @type {Canvas2D} */
         this._canvas = canvas;
+
+        /** @type {PhysicsController} */
+        this.physicsController = physicsController;
 
         this._routines.createRoutine("frameUpdate", () => { this._canvas.refresh() }, 1000/(config?.framerate ?? 30), 10000, config?.framerate !== 0);
         this._config.createState("framerate", (_, newValue) => {
             this._routines.setRoutineInterval("frameUpdate", 1000/newValue);
             this._routines.setRoutineState("frameUpdate", newValue !== 0);
-            console.log(`Framerate changed from ${_} to ${newValue}`)
         }, config?.framerate ?? 30);
 
-        this._routines.startRoutines();
     }
 
     /**
@@ -172,6 +175,22 @@ class Engine {
      */
     setConfig(config, value) {
         return this._config.setState(config, value);
+    }
+
+    /**
+     * Start engine operation.
+     */
+    start() {
+        this._routines.startRoutines();
+        this.physicsController.start();
+    }
+    
+    /**
+     * Stop engine operation.
+    */
+   stop() {
+        this.physicsController.stop();
+        this._routines.stopRoutines();
     }
 }
 
@@ -286,9 +305,26 @@ class AudioManager {
 }
 
 class PhysicsController {
-
+    _routines = new RoutineManager();
+    _config = new StateManager();
+    _metadata = {};
 	/** @type {PhysicsActor[]} */
 	_actors = [];
+
+    constructor(config) {
+        const stepRate = config?.stepRate ?? 300;
+        this._routines.createRoutine("stepForward", () => { 
+            for (const actor of this._actors)
+                actor.step(this._metadata.stepRate.interval);
+        }, 1000/stepRate, 10000, stepRate !== 0);
+
+        this._metadata.stepRate = {interval: 1/stepRate};
+        this._config.createState("stepRate", (_, newValue) => {
+            this._metadata.stepRate.interval = 1/newValue;
+            this._routines.setRoutineInterval("stepForward", 1000/newValue);
+            this._routines.setRoutineState("stepForward", newValue !== 0);
+        }, stepRate);
+    }
 	
 	/**
 	 * 
@@ -301,10 +337,34 @@ class PhysicsController {
 		}
 		return false;
 	}
+
+    /**
+     * Set config value.
+     * @param {string} config
+     * @param {*} value
+     */
+    setConfig(config, value) {
+        return this._config.setState(config, value);
+    }
+
+    /**
+     * Start actors physics.
+     */
+    start() {
+        this._routines.startRoutines();
+    }
+    
+    /**
+     * Stop actors physics.
+     */
+    stop() {
+        this._routines.stopRoutines();
+    }
 }
 
 class PhysicsActor {
 
+    /** @type {Style} */
 	_targetElement;
 	_physicsController;
 
@@ -327,7 +387,7 @@ class PhysicsActor {
 	
 	flags = {
 		hasCollision: true
-	}
+	};
 	
 	/**
 	 * Acceleration X in pixels per second.
@@ -375,6 +435,7 @@ class PhysicsActor {
 	 * Step physics time in seconds.
 	 * @param {number} timeStep 
 	 */
+	// stepQuantities?(timeStep) {
 	step(timeStep) {
 		const accelerationStepX = this.accelerationX * timeStep;
 		if (Math.abs(this.velocityX + accelerationStepX) < this.terminalVelocity) {
