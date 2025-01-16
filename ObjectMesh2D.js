@@ -347,6 +347,16 @@ class Style {
 				break;
         }
     }
+
+	/** 
+	 * Checks if the object is at the specified position.
+	 * @abstract 
+	 * @param {number} positionX Position X in pixels.
+	 * @param {number} positionY Position Y in pixels.
+	 */
+	isAt(positionX, positionY) {
+		console.error("%c" + this.constructor.name + " don't have a isIn method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+	}
 	
 	/** Relative offset X to it's parent. */
 	get relativeOffsetX() { return this.style._relativeOffsetX }
@@ -404,6 +414,11 @@ class Entity extends Style {
 	 * @type {PhysicsActor?}
 	 */
 	physicsActor;
+	
+	/**
+	 * @type {Shape[]}
+	 */
+	collisionShapes = [];
 
 	/**
 	 * @protected
@@ -442,16 +457,6 @@ class Entity extends Style {
 	 */
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
-	}
-
-	/** 
-	 * Checks if the shape is at the specified position.
-	 * @abstract 
-	 * @param {number} positionX Position X in pixels.
-	 * @param {number} positionY Position Y in pixels.
-	 */
-	isAt(positionX, positionY) {
-		console.error("%c" + this.constructor.name + " don't have a isIn method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
 }
 

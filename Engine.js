@@ -314,8 +314,31 @@ class PhysicsController {
     constructor(config) {
         const stepRate = config?.stepRate ?? 300;
         this._routines.createRoutine("stepForward", () => { 
-            for (const actor of this._actors)
-                actor.step(this._metadata.stepRate.interval);
+            const timeStep = this._metadata.stepRate.interval
+            for (const actor of this._actors) {
+                actor.stepVelocity(timeStep);
+            }
+
+            const collidableActorsOrdered = this._actors
+                .filter(actor => actor.flags.hasCollision)
+                .map(actor => ({actor, score: Math.abs(actor.velocityX) + Math.abs(actor.velocityY)}))
+                .sort(({score: scoreA}, {score: scoreB}) => scoreB - scoreA)
+                .map(({actor}) => actor);
+
+            for (const actor of this._actors) {
+                const deltaPosX = actor.velocityX * timeStep;
+                const deltaPosY = actor.velocityY * timeStep;
+                
+                const collisionElement = collidableActorsOrdered.find(comparedActor => actor !== comparedActor 
+                    && PhysicsController.projectCollision(actor._targetElement, comparedActor._targetElement, deltaPosX, deltaPosY));
+
+                if (collisionElement) {
+                    actor.onInitCollision?.(collisionElement);
+                    collisionElement.onCollisionTaken?.(actor);
+                } else {
+                    actor._targetElement.move(0, 0, deltaPosX, deltaPosY);
+                }
+            }
         }, 1000/stepRate, 10000, stepRate !== 0);
 
         this._metadata.stepRate = {interval: 1/stepRate};
@@ -324,6 +347,53 @@ class PhysicsController {
             this._routines.setRoutineInterval("stepForward", 1000/newValue);
             this._routines.setRoutineState("stepForward", newValue !== 0);
         }, stepRate);
+    }
+
+    /**
+     * 
+     * @param {Shape | Entity} stepObject
+     * @param {Shape | Entity} comparedObject
+     * @param {number} deltaPosX
+     * @param {number} deltaPosY
+     */
+    static projectCollision(stepObject, comparedObject, deltaPosX, deltaPosY) {
+        
+        let collisionShapesA = [];
+        if (stepObject instanceof Shape)
+            collisionShapesA.push(stepObject);
+        if (stepObject instanceof Entity)
+            collisionShapesA.push(...stepObject.collisionShapes);
+
+        let collisionShapesB = [];
+        if (comparedObject instanceof Shape)
+            collisionShapesB.push(comparedObject);
+        if (comparedObject instanceof Entity)
+            collisionShapesB.push(...comparedObject.collisionShapes);
+
+        if (collisionShapesA.length === 0 || collisionShapesB.length === 0)
+            return false;
+
+        if (collisionShapesB.length < collisionShapesA.length) {
+            const temp = collisionShapesA;
+            collisionShapesA = collisionShapesB;
+            collisionShapesB = temp;
+            deltaPosX = -deltaPosX;
+            deltaPosY = -deltaPosY;
+        }
+        
+        return collisionShapesA.some(shapeA => {
+            const nextPosLeft = shapeA.x + deltaPosX;
+            const nextPosTop = shapeA.y + deltaPosY;
+            const nextPosRight = nextPosLeft + shapeA.width;
+            const nextPosBottom = nextPosTop + shapeA.height;
+
+            return collisionShapesB.some(shapeB => {
+                return shapeB.isAt(nextPosLeft, nextPosTop)
+                    || shapeB.isAt(nextPosRight, nextPosTop)
+                    || shapeB.isAt(nextPosLeft, nextPosBottom)
+                    || shapeB.isAt(nextPosRight, nextPosBottom);
+            });
+        });        
     }
 	
 	/**
@@ -388,6 +458,16 @@ class PhysicsActor {
 	flags = {
 		hasCollision: true
 	};
+
+    /**
+     * @type {function (PhysicsActor) | undefined}
+     */
+    onInitCollision;
+    
+    /**
+     * @type {function (PhysicsActor) | undefined}
+     */
+    onCollisionTaken;
 	
 	/**
 	 * Acceleration X in pixels per second.
@@ -432,11 +512,10 @@ class PhysicsActor {
 	terminalVelocity = Number.POSITIVE_INFINITY;
 
 	/**
-	 * Step physics time in seconds.
+	 * Step velocity by time in seconds.
 	 * @param {number} timeStep 
 	 */
-	// stepQuantities?(timeStep) {
-	step(timeStep) {
+	stepVelocity(timeStep) {
 		const accelerationStepX = this.accelerationX * timeStep;
 		if (Math.abs(this.velocityX + accelerationStepX) < this.terminalVelocity) {
 			this.velocityX += accelerationStepX;
@@ -450,9 +529,5 @@ class PhysicsActor {
 		} else {
 			this.velocityY = accelerationStepY > 0 ? this.terminalVelocity : -this.terminalVelocity;
 		}
-
-		const deltaPosX = this.velocityX * timeStep;
-		const deltaPosY = this.velocityY * timeStep;
-		this._targetElement.move(0, 0, deltaPosX, deltaPosY);
 	}
 }
