@@ -47,6 +47,7 @@ class Canvas2D {
 				this.onEvent(event, getTargetElement(event.offsetX, event.offsetY));
 			})
 		);
+		document.addEventListener("mouseup", (event) => { this._lastEventsTarget.drag = undefined });
 	}
 
 	get x() { return this.canvas.style.left }
@@ -106,13 +107,14 @@ class Canvas2D {
 				callEventFunctions("mouseDown",  targetElement);
 				if (targetElement) {
 					this._lastEventsTarget.mouseDown = targetElement;
+					this._lastEventsTarget.drag = targetElement;
 					targetElement?.onMouseDown(event);
 				}
 				break;			
 			}
 			case "mouseup": {
 				callEventFunctions("mouseUp", targetElement);
-				this._lastEventsTarget.mouseDown = undefined;
+				this._lastEventsTarget.drag = undefined;
 				if (targetElement) {
 					targetElement?.onMouseUp(event);
 				}
@@ -129,9 +131,9 @@ class Canvas2D {
 					targetElement?.onMouseEnter(event);
 
 				}
-				if (this._lastEventsTarget.mouseDown) {
+				if (this._lastEventsTarget.drag) {
 					callEventFunctions("drag", targetElement);
-					this._lastEventsTarget.mouseDown?.onDrag(event);
+					this._lastEventsTarget.drag?.onDrag(event);
 				}
 				break;
 			}
@@ -345,6 +347,16 @@ class Style {
 				break;
         }
     }
+
+	/** 
+	 * Checks if the object is at the specified position.
+	 * @abstract 
+	 * @param {number} positionX Position X in pixels.
+	 * @param {number} positionY Position Y in pixels.
+	 */
+	isAt(positionX, positionY) {
+		console.error("%c" + this.constructor.name + " don't have a isIn method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+	}
 	
 	/** Relative offset X to it's parent. */
 	get relativeOffsetX() { return this.style._relativeOffsetX }
@@ -397,6 +409,17 @@ class Entity extends Style {
 	/** @private */
 	static idCount = 0;
 
+	/** 
+	 * Actor for physics if necessary.
+	 * @type {PhysicsActor?}
+	 */
+	physicsActor;
+	
+	/**
+	 * @type {Shape[]}
+	 */
+	collisionShapes = [];
+
 	/**
 	 * @protected
 	 * @param {number | Measure} measure Base Measure.
@@ -435,15 +458,6 @@ class Entity extends Style {
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
 	}
-
-	/** 
-	 * @abstract 
-	 * @param {number} positionX Position X in pixels.
-	 * @param {number} positionY Position Y in pixels.
-	 */
-	hasCollision(positionX, positionY) {
-		console.error("%c" + this.constructor.name + " don't have a hasCollision method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
-	}
 }
 
 /** Generic class for Shapes. 
@@ -452,6 +466,12 @@ class Entity extends Style {
 class Shape extends Style {
 	/** @private */
 	static idCount = 0;
+
+	/** 
+	 * Actor for physics if necessary.
+	 * @type {PhysicsActor?}
+	 */
+	physicsActor;
 
 	/**
 	 * @protected
@@ -533,6 +553,16 @@ class Shape extends Style {
 	 */
 	move(marginMeasureX, marginMeasureY, marginX, marginY) {
 		console.error("%c" + this.constructor.name + " don't have a move method!", "color: #ff4444; font-size: 24px; font-weight: bold;");
+	}
+
+	/** 
+	 * Checks if the shape is at the specified position.
+	 * @param {number} positionX Position X in pixels.
+	 * @param {number} positionY Position Y in pixels.
+	 */
+	isAt(positionX, positionY) {
+		return positionX >= this.offsetLeft() && positionX < this.offsetRight() 
+			&& positionY >= this.offsetTop() && positionY < this.offsetBottom();
 	}
 
 	/** Returns the coordinate (y) of the top border of Shape. */
